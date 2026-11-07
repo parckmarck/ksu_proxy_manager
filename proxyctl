@@ -1,0 +1,14 @@
+#!/system/bin/sh
+# Command-line entry point: forwards to the bundled proxyctl binary.
+case "$0" in
+  */*) MODDIR=${0%/*} ;;
+  *) MODDIR=/data/adb/modules/ksu_proxy_manager ;;
+esac
+BIN="$MODDIR/bin/$(getprop ro.product.cpu.abi)/proxyctl"
+if [ ! -f "$BIN" ]; then
+  for BIN in "$MODDIR"/bin/*/proxyctl; do break; done
+fi
+if [ ! -x "$BIN" ]; then
+  chmod 0755 "$BIN" "${BIN%/*}/proxy-managerd" 2>/dev/null
+fi
+exec "$BIN" "$@"

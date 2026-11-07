@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#ffffff">
+<title>KSU Proxy Manager</title>
+<script src="assets/theme.js?v=__V__"></script>
+<link rel="stylesheet" href="assets/app.css?v=__V__">
+<script type="module" src="assets/main.js?v=__V__"></script>
+</head>
+<body>
+<a class="skip-link" href="#content">跳至内容</a>
+<div id="app">
+  <aside class="sidebar">
+    <a class="brand" href="#/overview">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span>KSU<span class="brand-sub">Proxy Manager</span></span>
+    </a>
+    <nav id="nav" aria-label="页面"></nav>
+    <div class="sidebar-footer"><span class="status-dot"></span><span id="connection-kind">KernelSU WebUI</span></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar">
+      <div class="mobile-brand"><span class="brand-mark" aria-hidden="true"></span><span>KSU Proxy Manager</span></div>
+      <div class="desktop-context">KSU Proxy Manager</div>
+      <div class="header-actions">
+        <span id="hdr-state" class="chip status-chip" role="status">连接中…</span>
+        <div id="header-tools" class="row"></div>
+      </div>
+    </header>
+    <main id="content" tabindex="-1" aria-labelledby="page-title">
+      <div class="page-heading"><h1 id="page-title" tabindex="-1">概览</h1><span id="page-meta" class="small muted"></span></div>
+      <div id="banner"></div>
+      <div id="view"><p class="muted center">正在加载…</p></div>
+    </main>
+  </div>
+</div>
+<nav id="mobile-nav" aria-label="常用页面"></nav>
+<div id="toasts" aria-live="polite"></div>
+<noscript>需要启用 JavaScript。</noscript>
+</body>
+</html>

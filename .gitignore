@@ -1,0 +1,18 @@
+# 构建产物
+/build/
+
+# GitHub Release 安装包，不进入 Git
+/dist/*.zip
+
+# 日志和临时文件
+*.log
+*.tmp
+
+# 本机工具和编辑器配置
+.claude/
+.vscode/
+.idea/
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
