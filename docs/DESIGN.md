@@ -160,7 +160,7 @@ schemaVersion=3, revision, settings, nodes[], groups[], subscriptions[], routing
 - `groups`：`select` 或 `urltest`；成员来自显式节点、其他组、全部节点、指定订阅，可加名称正则筛选；不允许组环。
 - `routing`：运行模式（规则/全局/直连）、预设（绕过大陆 / 全局代理）、广告与 QUIC 拦截开关、用户规则（有序）、兜底出口。
 - `dns`：fake-ip 或真实 IP、直连 DNS、代理 DNS、fake-ip 排除名单。
-- `apps`：接管模式（全部 / 仅名单 / 排除名单）、包名、Android 用户列表。
+- `apps`：接管模式（全部 / 仅名单 / 排除名单）、包名、Android 用户列表；可选的 `routes`（包名 → 代理组 / `DIRECT` / `REJECT`，每个包名至多一条，上限 500）。`routes` 为空时不写入文件，schema 仍为 3；它被渲染为排在全部自定义规则与预设之前的包名规则（同一出口合并为一条），只对已被接管的应用、且在规则模式下起作用。接管范围（模式 / 包名 / 用户）的修改即时生效；`routes` 的修改属于核心配置，保存后处于“待生效”，重启核心后应用。被 `routes` 引用的代理组不能删除。
 
 ## 7. 网络接管设计
 

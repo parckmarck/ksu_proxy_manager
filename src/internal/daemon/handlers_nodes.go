@@ -384,6 +384,11 @@ func (d *Daemon) hDeleteGroup(_ http.ResponseWriter, r *http.Request) (any, erro
 				return badRequest("规则 %s 正在使用该代理组", rule.ID)
 			}
 		}
+		for _, route := range c.Apps.Routes {
+			if route.Target == ref {
+				return badRequest("应用 %s 的出口正在使用该代理组，请先在应用页修改", route.Package)
+			}
+		}
 		c.Groups = append(c.Groups[:idx], c.Groups[idx+1:]...)
 		for i := range c.Groups {
 			g := &c.Groups[i]

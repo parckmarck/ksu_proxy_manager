@@ -71,6 +71,7 @@ const (
 	MaxNodes         = 10000
 	MaxGroups        = 200
 	MaxSubscriptions = 100
+	MaxAppRoutes     = 500
 )
 
 // Validate checks the complete configuration together with its secrets.
@@ -260,7 +261,7 @@ func Validate(c *Config, sec *Secrets) error {
 	if err := validateDNS(&c.DNS); err != nil {
 		return err
 	}
-	return validateApps(&c.Apps)
+	return validateApps(&c.Apps, groups)
 }
 
 func validateSettings(s *Settings) error {
@@ -764,7 +765,24 @@ func validateDNS(d *DNS) error {
 	return nil
 }
 
-func validateApps(a *AppPolicy) error {
+func validateApps(a *AppPolicy, groups map[string]*Group) error {
+	if len(a.Routes) > MaxAppRoutes {
+		return fieldErr("apps.routes", "应用出口最多 %d 条", MaxAppRoutes)
+	}
+	routed := map[string]bool{}
+	for i, r := range a.Routes {
+		p := fmt.Sprintf("apps.routes[%d]", i)
+		if !ValidPackageName(r.Package) {
+			return fieldErr(p+".package", "包名格式无效: %s", r.Package)
+		}
+		if routed[r.Package] {
+			return fieldErr(p+".package", "应用 %s 重复指定了出口", r.Package)
+		}
+		routed[r.Package] = true
+		if err := validTarget(p+".target", r.Target, groups); err != nil {
+			return err
+		}
+	}
 	switch a.Mode {
 	case "all", "include", "exclude":
 	default:

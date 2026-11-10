@@ -243,6 +243,88 @@ func TestRenderSingBoxStructure(t *testing.T) {
 	}
 }
 
+// Per-app targets are rendered ahead of every custom rule, merged by target.
+func TestRenderAppRoutes(t *testing.T) {
+	c, s := fixture(false)
+	c.Routing.Rules = c.Routing.Rules[:1]
+	c.Apps.Routes = []config.AppRoute{
+		{Package: "com.example.video", Target: config.GroupRef("media")},
+		{Package: "com.example.bank", Target: config.TargetDirect},
+		{Package: "com.example.chat", Target: config.GroupRef("media")},
+		{Package: "com.example.blocked", Target: config.TargetReject},
+	}
+	out, err := Render(Input{Config: c, Secrets: s, Engine: config.EngineMihomo, Version: "1.19.33", Runtime: testRuntime(t.TempDir()), Rulesets: rulesetLookup(t, config.EngineMihomo)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal(out.Content, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if doc["find-process-mode"] != "strict" {
+		t.Fatalf("find-process-mode = %v", doc["find-process-mode"])
+	}
+	rules := doc["rules"].([]any)
+	want := []string{
+		"PROCESS-NAME,com.example.bank,DIRECT",
+		"PROCESS-NAME,com.example.blocked,REJECT",
+		"PROCESS-NAME,com.example.chat,流媒体",
+		"PROCESS-NAME,com.example.video,流媒体",
+		"DOMAIN-SUFFIX,google.com,节点选择",
+	}
+	first := len(PrivateCIDRs)
+	if len(rules) < first+len(want) {
+		t.Fatalf("rules = %v", rules)
+	}
+	for i, w := range want {
+		if rules[first+i] != w {
+			t.Errorf("mihomo rule %d = %v, want %s", first+i, rules[first+i], w)
+		}
+	}
+	checkWithCore(t, config.EngineMihomo, out)
+
+	out, err = Render(Input{Config: c, Secrets: s, Engine: config.EngineSingBox, Version: "1.14.4", Runtime: testRuntime(t.TempDir()), Rulesets: rulesetLookup(t, config.EngineSingBox)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var box map[string]any
+	if err := json.Unmarshal(out.Content, &box); err != nil {
+		t.Fatal(err)
+	}
+	route := box["route"].(map[string]any)
+	if route["find_process"] != true {
+		t.Fatal("sing-box process lookup is not enabled")
+	}
+	routeRules := route["rules"].([]any)
+	start := -1
+	for i, r := range routeRules {
+		if r.(map[string]any)["clash_mode"] == "Global" {
+			start = i + 1
+		}
+	}
+	if start < 0 || len(routeRules) < start+4 {
+		t.Fatalf("route rules = %v", routeRules)
+	}
+	rule := func(i int) map[string]any { return routeRules[start+i].(map[string]any) }
+	packages := func(i int) []any {
+		list, _ := rule(i)["package_name"].([]any)
+		return list
+	}
+	if len(packages(0)) != 1 || packages(0)[0] != "com.example.bank" || rule(0)["outbound"] != "DIRECT" {
+		t.Errorf("direct app rule: %v", rule(0))
+	}
+	if len(packages(1)) != 1 || packages(1)[0] != "com.example.blocked" || rule(1)["action"] != "reject" {
+		t.Errorf("rejected app rule: %v", rule(1))
+	}
+	if len(packages(2)) != 2 || packages(2)[0] != "com.example.chat" || packages(2)[1] != "com.example.video" || rule(2)["outbound"] != "流媒体" {
+		t.Errorf("grouped app rule: %v", rule(2))
+	}
+	if _, ok := rule(3)["domain_suffix"]; !ok {
+		t.Errorf("custom rules must follow the app rules: %v", rule(3))
+	}
+	checkWithCore(t, config.EngineSingBox, out)
+}
+
 func TestRenderMissingRulesetsDegrade(t *testing.T) {
 	c, s := fixture(false)
 	none := func(RulesetID) (string, bool) { return "", false }

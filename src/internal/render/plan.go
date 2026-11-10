@@ -455,6 +455,19 @@ func (p *plan) buildDNS() error {
 
 func (p *plan) buildRules() {
 	r := p.in.Config.Routing
+	// Per-app targets come first so that they win over every custom rule and
+	// preset. Apps sharing a target are merged into one rule.
+	appRules := map[string]int{}
+	for _, route := range p.in.Config.Apps.Routes {
+		i, ok := appRules[route.Target]
+		if !ok {
+			i = len(p.rules)
+			appRules[route.Target] = i
+			p.rules = append(p.rules, planRule{typ: "package", target: route.Target})
+		}
+		p.rules[i].values = append(p.rules[i].values, route.Package)
+		p.hasPkg = true
+	}
 	for _, rule := range r.Rules {
 		if !rule.Enabled {
 			continue

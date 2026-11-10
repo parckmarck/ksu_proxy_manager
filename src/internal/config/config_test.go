@@ -65,6 +65,23 @@ func TestValidateRejects(t *testing.T) {
 		{"bad dns", func(c *Config, _ *Secrets) { c.DNS.Direct = []string{"ftp://x"} }, "dns.direct[0]"},
 		{"dns direct needs ip", func(c *Config, _ *Secrets) { c.DNS.Direct = []string{"https://dns.alidns.com/dns-query"} }, "dns.direct"},
 		{"bad package", func(c *Config, _ *Secrets) { c.Apps.Mode = "include"; c.Apps.Packages = []string{"x;rm -rf"} }, "apps.packages"},
+		{"bad app route package", func(c *Config, _ *Secrets) {
+			c.Apps.Routes = []AppRoute{{Package: "x,DIRECT", Target: TargetDirect}}
+		}, "apps.routes[0].package"},
+		{"duplicate app route", func(c *Config, _ *Secrets) {
+			c.Apps.Routes = []AppRoute{{Package: "com.example.app", Target: TargetDirect}, {Package: "com.example.app", Target: TargetReject}}
+		}, "apps.routes[1].package"},
+		{"app route to missing group", func(c *Config, _ *Secrets) {
+			c.Apps.Routes = []AppRoute{{Package: "com.example.app", Target: "group:none"}}
+		}, "apps.routes[0].target"},
+		{"node as app route target", func(c *Config, _ *Secrets) {
+			c.Apps.Routes = []AppRoute{{Package: "com.example.app", Target: "node:a"}}
+		}, "apps.routes[0].target"},
+		{"too many app routes", func(c *Config, _ *Secrets) {
+			for i := 0; i <= MaxAppRoutes; i++ {
+				c.Apps.Routes = append(c.Apps.Routes, AppRoute{Package: "com.example.app" + strconv.Itoa(i), Target: TargetDirect})
+			}
+		}, "apps.routes"},
 		{"node as rule target", func(c *Config, _ *Secrets) {
 			c.Routing.Rules = []Rule{{ID: "r1", Enabled: true, Type: "domain", Values: []string{"a.com"}, Target: "node:a"}}
 		}, "routing.rules[0].target"},
@@ -111,6 +128,36 @@ func TestValidateAcceptsChainsAndRules(t *testing.T) {
 	}
 	if err := Validate(&c, &s); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestAppRoutesNormalizeAndValidate(t *testing.T) {
+	c, s := validBase()
+	c.Apps.Routes = []AppRoute{
+		{Package: " com.example.video ", Target: "group:auto"},
+		{Package: "", Target: TargetDirect},
+		{Package: "com.example.bank", Target: TargetDirect},
+		{Package: "com.example.blocked", Target: TargetReject},
+	}
+	c.Normalize()
+	if err := Validate(&c, &s); err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Apps.Routes) != 3 || c.Apps.Routes[0].Package != "com.example.bank" || c.Apps.Routes[2].Package != "com.example.video" {
+		t.Fatalf("routes: %+v", c.Apps.Routes)
+	}
+	if clone := Clone(c); !c.Apps.SameRoutes(clone.Apps) || c.Apps.SameRoutes(Default().Apps) {
+		t.Fatal("SameRoutes mismatch")
+	}
+	// Policies without per-app targets keep the schema 3 document shape.
+	c.Apps.Routes = []AppRoute{}
+	c.Normalize()
+	b, err := json.Marshal(c.Apps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Apps.Routes != nil || strings.Contains(string(b), "routes") {
+		t.Fatalf("empty routes must be omitted: %s", b)
 	}
 }
 

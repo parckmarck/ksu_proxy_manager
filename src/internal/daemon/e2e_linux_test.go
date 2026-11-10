@@ -180,6 +180,9 @@ func recoveryTestEnv(t *testing.T) *testEnv {
 }
 
 func TestE2EFailClosedEnabledBeforeFailedReapply(t *testing.T) {
+	if os.Getenv("KPM_TEST_CORES") == "" {
+		t.Skip("KPM_TEST_CORES not set")
+	}
 	if !inNetns(t) {
 		return
 	}
@@ -211,6 +214,9 @@ func TestE2EFailClosedEnabledBeforeFailedReapply(t *testing.T) {
 }
 
 func TestE2ECoreIdentityWriteFailure(t *testing.T) {
+	if os.Getenv("KPM_TEST_CORES") == "" {
+		t.Skip("KPM_TEST_CORES not set")
+	}
 	if !inNetns(t) {
 		return
 	}

@@ -466,6 +466,31 @@ await test('apps: include mode with a selected app', async () => {
   assert.deepEqual(p.packages, ['com.example.browser']);
 });
 
+await test('apps: per-app outbound is saved and cleared', async () => {
+  await go('overview');
+  await go('apps');
+  const routeSelect = () => $$('.list li').find((x) => x.textContent.includes('com.example.browser'))?.querySelector('select.app-route');
+  // Saving reloads the page data and rebuilds the list, so wait for a new element.
+  const choose = async (value, previous) => {
+    const sel = await waitFor(() => { const s = routeSelect(); return s && s !== previous ? s : null; }, 'outbound select');
+    assert.ok([...sel.options].some((o) => o.value === 'DIRECT') && [...sel.options].some((o) => o.value.startsWith('group:')), 'outbound options');
+    sel.value = value;
+    sel.dispatchEvent(new w.Event('change', { bubbles: true }));
+    click(byText('button', '保存'));
+    return sel;
+  };
+  const first = await choose('DIRECT', null);
+  await waitFor(async () => ((await api.get('/api/v1/apps')).policy.routes || []).length === 1, 'outbound saved');
+  const saved = (await api.get('/api/v1/apps')).policy;
+  assert.deepEqual(saved.routes, [{ package: 'com.example.browser', target: 'DIRECT' }]);
+  assert.deepEqual(saved.packages, ['com.example.browser']);
+  const reloaded = await waitFor(() => { const s = routeSelect(); return s && s !== first ? s : null; }, 'list rebuilt after saving');
+  assert.equal(reloaded.value, 'DIRECT');
+  assert.ok(reloaded.classList.contains('set'), 'pinned outbound is highlighted');
+  await choose('', first);
+  await waitFor(async () => !(await api.get('/api/v1/apps')).policy.routes, 'outbound cleared');
+});
+
 await test('settings: save, export backup, web key', async () => {
   await go('settings');
   await waitFor(() => $$('.field .label').some((e) => e.textContent === '代理 IPv6'), 'settings form');

@@ -194,6 +194,31 @@ type AppPolicy struct {
 	Mode     string   `json:"mode"`
 	Packages []string `json:"packages"`
 	Users    []int    `json:"users"`
+
+	// Routes pins individual apps to a target. It is omitted while empty so
+	// that documents without per-app targets keep their previous shape.
+	Routes []AppRoute `json:"routes,omitempty"`
+}
+
+// AppRoute sends every connection of one app to a fixed target (a proxy
+// group, DIRECT or REJECT), ahead of the custom routing rules.
+type AppRoute struct {
+	Package string `json:"package"`
+	Target  string `json:"target"`
+}
+
+// SameRoutes reports whether both policies pin the same apps to the same
+// targets. Both sides are expected to be normalized.
+func (a AppPolicy) SameRoutes(b AppPolicy) bool {
+	if len(a.Routes) != len(b.Routes) {
+		return false
+	}
+	for i := range a.Routes {
+		if a.Routes[i] != b.Routes[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // GroupRef / NodeRef build member references used by Selected and targets.

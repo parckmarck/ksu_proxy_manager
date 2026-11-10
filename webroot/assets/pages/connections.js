@@ -3,7 +3,7 @@ import { h, clear, card, btn, toolBtn, searchField, loading, toast, confirmDialo
 
 export default function mount(view) {
   const box = h('div', null, loading());
-  const search = h('input', { type: 'search', placeholder: '按域名、规则或出口筛选', oninput: () => render() });
+  const search = h('input', { type: 'search', placeholder: '按域名、应用、规则或出口筛选', oninput: () => render() });
   let last = null;
   let alive = true;
   view.append(card('活动连接', btn('全部断开', async () => {
@@ -21,7 +21,7 @@ export default function mount(view) {
       return;
     }
     const kw = search.value.trim().toLowerCase();
-    const list = last.connections.filter((c) => !kw || [c.host, c.dest, c.rule, (c.chains || []).join(' ')].join(' ').toLowerCase().includes(kw));
+    const list = last.connections.filter((c) => !kw || [c.host, c.dest, c.process, c.rule, (c.chains || []).join(' ')].join(' ').toLowerCase().includes(kw));
     list.sort((a, b) => (b.download + b.upload) - (a.download + a.upload));
     box.append(h('div', { class: 'connection-totals' },
       h('span', null, `${kw ? `匹配 ${list.length} / ` : '共 '}${last.connections.length} 个连接`),
@@ -33,7 +33,8 @@ export default function mount(view) {
     const tbody = h('tbody');
     for (const c of list.slice(0, 300)) {
       tbody.append(h('tr', null,
-        h('td', { class: 'break' }, h('div', null, c.host || c.dest), h('div', { class: 'muted' }, `${c.network} ${c.host ? c.dest : ''}`)),
+        h('td', { class: 'break' }, h('div', null, c.host || c.dest), h('div', { class: 'muted' }, `${c.network} ${c.host ? c.dest : ''}`),
+          c.process ? h('div', { class: 'muted' }, `应用 ${c.process}`) : null),
         h('td', { class: 'break' }, h('div', null, (c.chains || []).slice().reverse().join(' → ')), h('div', { class: 'muted' }, c.rule)),
         h('td', null, h('span', null, `↓ ${fmtBytes(c.download)}`), h('br'), h('span', null, `↑ ${fmtBytes(c.upload)}`)),
         h('td', null, toolBtn('断开', 'unplug', async () => {

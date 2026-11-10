@@ -197,6 +197,46 @@ func checkMaintenanceAppPolicy(t *testing.T, pending bool) {
 	}
 }
 
+// Which apps are captured applies at once; per-app targets need a core restart.
+func TestAppRouteChangeStaysPending(t *testing.T) {
+	manager, _ := newTestEngine(t)
+	manager.proc = &supervisor.Process{}
+	manager.state = StateRunning
+	manager.d.Apps = apps.NewSource()
+	manager.d.Apps.PackagesList = filepath.Join(t.TempDir(), "packages.list")
+	if err := os.WriteFile(manager.d.Apps.PackagesList, []byte("com.test.present 10001 0 /test\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	save := func(policy config.AppPolicy) int64 {
+		t.Helper()
+		next, err := manager.d.Store.Update(-1, func(c *config.Config, _ *config.Secrets) error {
+			c.Apps = policy
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.UpdateApps(next.Revision, next.Apps); err != nil {
+			t.Fatal(err)
+		}
+		return next.Revision
+	}
+	policy := config.AppPolicy{Mode: "include", Packages: []string{"com.test.present"}, Users: []int{0}}
+	if revision := save(policy); manager.runRev != revision {
+		t.Fatal("a capture-only change must not stay pending")
+	}
+	running := manager.runRev
+	policy.Mode = "exclude"
+	policy.Routes = []config.AppRoute{{Package: "com.test.present", Target: config.TargetDirect}}
+	save(policy)
+	if manager.runRev != running || len(manager.cfg.Apps.Routes) != 0 {
+		t.Fatal("changed app routes were marked as applied without a core restart")
+	}
+	if manager.cfg.Apps.Mode != "exclude" {
+		t.Fatal("the capture part of the policy was not applied")
+	}
+}
+
 func TestRulesetsUpdatedRechecksRevisionAfterLock(t *testing.T) {
 	manager, _ := newTestEngine(t)
 	manager.proc = &supervisor.Process{}

@@ -1337,9 +1337,12 @@ func (e *Engine) RuntimeSettings(newRev int64, s config.Settings) {
 	})
 }
 
-// UpdateApps applies a saved app policy to the running capture plan. The core
-// configuration does not depend on it, so no restart is needed. The desired
-// policy is retained even when reconciliation needs another attempt.
+// UpdateApps applies a saved app policy to the running capture plan. Which
+// apps are captured does not depend on the core configuration, so that part
+// takes effect without a restart. Per-app targets are rendered into the core
+// configuration; when they change, the revision stays pending until the core
+// restarts. The desired policy is retained even when reconciliation needs
+// another attempt.
 func (e *Engine) UpdateApps(newRev int64, p config.AppPolicy) error {
 	e.opMu.Lock()
 	defer e.opMu.Unlock()
@@ -1347,7 +1350,18 @@ func (e *Engine) UpdateApps(newRev int64, p config.AppPolicy) error {
 	running := e.proc != nil && e.state == StateRunning
 	cfg := config.Clone(e.cfg)
 	e.mu.Unlock()
-	e.runtimeChange(newRev, func(c *config.Config) { c.Apps = config.Clone(p) })
+	if cfg.Apps.SameRoutes(p) {
+		e.runtimeChange(newRev, func(c *config.Config) { c.Apps = config.Clone(p) })
+	} else {
+		// Keep the routes the core was started with and leave runRev alone.
+		applied := config.Clone(p)
+		e.mu.Lock()
+		if e.proc != nil {
+			e.cfg.Apps.Mode, e.cfg.Apps.Packages, e.cfg.Apps.Users = applied.Mode, applied.Packages, applied.Users
+			e.cfgGeneration++
+		}
+		e.mu.Unlock()
+	}
 	if running && e.d.CaptureEnabled {
 		e.mu.Lock()
 		e.appsDirty = true

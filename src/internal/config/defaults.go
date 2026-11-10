@@ -225,6 +225,14 @@ func (c *Config) Normalize() {
 	}
 	sort.Ints(us)
 	c.Apps.Users = us
+	var routes []AppRoute
+	for _, r := range c.Apps.Routes {
+		if r.Package = strings.TrimSpace(r.Package); r.Package != "" {
+			routes = append(routes, r)
+		}
+	}
+	sort.SliceStable(routes, func(i, j int) bool { return routes[i].Package < routes[j].Package })
+	c.Apps.Routes = routes
 }
 
 // Normalize trims whitespace and drops empty optional blocks of a node.
