@@ -1,4 +1,4 @@
-# KSU Proxy Manager 2.0.3
+# KSU Proxy Manager 2.1.0
 
 KernelSU / Magisk / APatch 代理管理模块。使用 Mihomo 或 sing-box 作为代理核心，通过 TUN 透明代理设备流量，提供按应用分流、订阅管理、分流规则与 DNS 设置，全部在模块自带的 WebUI 中完成。
 
@@ -26,7 +26,7 @@ KernelSU / Magisk / APatch 代理管理模块。使用 Mihomo 或 sing-box 作�
 
 ## 安装与升级
 
-1. 在管理器中刷入 `ksu_proxy_manager-v2.0.3.zip`，重启。
+1. 在管理器中刷入 `ksu_proxy_manager-v2.1.0.zip`，重启。
 2. 打开模块 WebUI：
    1. 「核心」页：下载 Mihomo 或 sing-box（或导入本地文件），在“使用的核心”中选择。
    2. 「订阅」页添加订阅，或在「节点」页导入分享链接 / 手动添加。
@@ -34,6 +34,8 @@ KernelSU / Magisk / APatch 代理管理模块。使用 Mihomo 或 sing-box 作�
 3. 之后开机会自动启动（可在设置中关闭）。模块列表中的“操作”按钮可一键启动/停止核心。
 
 从 1.x 升级：首次启动时自动迁移旧配置（节点、订阅、代理组、应用名单、分流设置），原文件备份在 `/data/adb/ksu_proxy_manager/config/backups/legacy-*.json`；已安装的核心继续可用。
+
+在线更新：2.1.0 起，KernelSU / Magisk / APatch 管理器的模块列表会提示新版本并可直接安装，更新信息与安装包都来自本项目的 GitHub Release；模块自身不联网检查更新。2.0.3 及更早版本没有更新地址，需要手动刷入一次 2.1.0 或更新的版本。更新内容见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 工作方式
 
@@ -85,11 +87,20 @@ proxyctl version
 源码位于 `src/`（Go，依赖已 vendor），在 Linux / WSL 中：
 
 ```
-make test    # go vet、单元测试、网络命名空间内的真实核心端到端测试、脚本检查、WebUI 端到端测试
-make build   # 生成 dist/ksu_proxy_manager-v<版本>.zip 与 release-manifest.json
+make test    # go vet、单元测试、网络命名空间内的真实核心端到端测试、脚本检查、发布信息检查、WebUI 端到端测试
+make build   # 生成 dist/ksu_proxy_manager-v<版本>.zip、release-manifest.json、update.json 与 changelog.md
 ```
 
 端到端测试需要环境变量 `KPM_TEST_CORES`（含 mihomo、sing-box 可执行文件或官方压缩包的目录）、`KPM_TEST_RULESETS`（可选）与 `JSDOM_NODE_PATH`（含 `node_modules/jsdom` 的目录），并依赖 `unshare` 创建用户/网络命名空间。
+
+### 发布
+
+1. 同时修改 `module.prop` 的 `version` / `versionCode` 与 `src/internal/buildinfo/buildinfo.go`。`versionCode` 固定为 主版本×10000 + 次版本×100 + 修订号（2.1.0 → 20100），管理器靠它判断是否有更新。
+2. 在 [CHANGELOG.md](CHANGELOG.md) 增加 `## <版本号>` 一节。
+3. `make test`、`make build`。版本号不一致、缺少更新日志或更新地址不合规时构建失败。
+4. 在 GitHub 创建标签为 `v<版本号>` 的 Release，上传 `dist/` 中的 `ksu_proxy_manager-v<版本号>.zip`、`update.json`、`changelog.md` 三个文件，文件名不要改。
+
+`module.prop` 的 `updateJson` 指向 `releases/latest/download/update.json`，即最新一个正式 Release 的附件：Release 发布后更新才对用户可见；草稿与预发布（Pre-release）不会推送给用户。`update.json` 中的下载地址按标签 `v<版本号>` 生成，标签名不符或漏传文件会导致管理器更新失败。
 
 设计说明见 [docs/DESIGN.md](docs/DESIGN.md)。
 

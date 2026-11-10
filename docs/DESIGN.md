@@ -272,6 +272,13 @@ Mihomo 的 VMess+XHTTP、Trojan+HTTP/2 等不支持的组合在渲染前明确�
 | `uninstall.sh` | 若存在“卸载时删除数据”标记则安全删除数据目录（拒绝符号链接），否则保留；在开机早期运行，不调用任何可能阻塞的命令 |
 | `proxyctl` | 命令行与 WebUI 入口，转发到 `bin/<abi>/proxyctl` |
 
+### 14.1 在线更新
+
+- `module.prop` 的 `updateJson` 固定为 `https://github.com/<owner>/<repo>/releases/latest/download/update.json`。检查与下载由 KernelSU / Magisk / APatch 管理器完成，守护进程不参与，也不新增任何联网行为；守护进程改写 `description` 时保留该行。
+- 构建脚本由 `module.prop` 与 `CHANGELOG.md` 生成 `dist/update.json`（`version`、`versionCode`、`zipUrl`、`changelog`）和 `dist/changelog.md`（当前版本一节），两者与安装包一起作为标签 `v<版本号>` 的 Release 附件发布。下载地址带版本标签，更新信息取“最新正式 Release”：只有 Release 发布后更新才可见，不存在提示更新而安装包尚未上传的窗口；草稿与预发布不推送。
+- 门禁：`versionCode` 必须等于 主×10000 + 次×100 + 修订（管理器仅在其增大时提示更新）、`updateJson` 符合上述格式、`CHANGELOG.md` 有当前版本的小节、`update.json` 指向的文件名与实际安装包一致；任一不满足则构建失败，`make test` 也执行其中不依赖安装包的检查。
+- 安装包的完整性依赖 GitHub 的 HTTPS 与管理器自身的安装流程，`update.json` 不带摘要（各管理器的格式没有该字段）；`release-manifest.json` 的 `zipSha256` 供人工核对。没有 `updateJson` 的旧版本（≤ 2.0.3）需要手动升级一次。
+
 ## 15. 安全设计要点
 
 - 所有外部输入（API 正文、订阅内容、归档、发布元数据）有大小上限与结构校验；YAML 别名按展开后计入节点数上限并限制深度；发布标签与资产名须为安全文件名。
@@ -293,7 +300,7 @@ Mihomo 的 VMess+XHTTP、Trojan+HTTP/2 等不支持的组合在渲染前明确�
 | 网络命名空间集成 | 在 `unshare -rn` 中创建 TUN、执行对账、验证规则/路由、清理与自愈 |
 | 端到端 | 守护进程 + 真实 Mihomo / sing-box 1.14 / sing-box 1.13 在命名空间内导入（归档与裸文件）、启动、接管、代理请求、模式与选择切换、应用名单热更新、崩溃重启、挂起重启、失败关闭、停止与退出清理、孤儿回收 |
 | WebUI | jsdom 加载真实 WebUI，经模拟的 `ksu.exec` 调用真实 proxyctl 与守护进程，覆盖各页面主要操作与分块上传 |
-| 脚本与发布 | `sh -n`、安装脚本模拟执行、发布门禁 |
+| 脚本与发布 | `sh -n`、安装脚本模拟执行、在线更新信息检查、发布门禁 |
 
 ## 18. 已知限制
 

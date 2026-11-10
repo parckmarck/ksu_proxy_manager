@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Package a staged module tree into a flashable zip with fixed permissions
-and write a release manifest, then verify the result.
+and write a release manifest plus the online-update files (update.json,
+changelog.md), then verify the result.
 
-usage: package.py <staged-dir> <out.zip> <version> <versionCode> <buildId>
+usage: package.py <staged-dir> <out.zip> <version> <versionCode> <buildId> <CHANGELOG.md>
 """
 import hashlib
 import json
@@ -10,6 +11,9 @@ import os
 import stat
 import sys
 import zipfile
+
+sys.dont_write_bytecode = True  # keep scripts/ free of __pycache__
+import release_meta  # noqa: E402
 
 EXECUTABLES = {
     "customize.sh", "service.sh", "action.sh", "uninstall.sh", "proxyctl",
@@ -65,9 +69,9 @@ def check_text(root, rel):
 
 
 def main():
-    if len(sys.argv) != 6:
+    if len(sys.argv) != 7:
         sys.exit(__doc__)
-    root, out, version, code, build_id = sys.argv[1:]
+    root, out, version, code, build_id, changelog_path = sys.argv[1:]
     files = collect(root)
     missing = sorted(REQUIRED - set(files))
     if missing:
@@ -75,6 +79,13 @@ def main():
     prop = dict(line.split("=", 1) for line in open(os.path.join(root, "module.prop"), encoding="utf-8").read().splitlines() if "=" in line)
     if prop.get("id") != "ksu_proxy_manager" or prop.get("version") != version or prop.get("versionCode") != code:
         sys.exit("module.prop does not match the build version")
+    # The update files describe the module.prop that is actually shipped.
+    try:
+        update, zip_name, changelog = release_meta.load(os.path.join(root, "module.prop"), changelog_path)
+    except release_meta.Error as e:
+        sys.exit(str(e))
+    if zip_name != os.path.basename(out):
+        sys.exit(f"update.json points at {zip_name}, but the package is {os.path.basename(out)}")
     for rel in files:
         check_text(root, rel)
         if rel.startswith("bin/"):
@@ -133,6 +144,9 @@ def main():
             if hashlib.sha256(z.read(info)).hexdigest() != manifest["files"][info.filename]:
                 sys.exit(f"hash mismatch for {info.filename}")
     print(f"packaged {out} ({len(files)} files, sha256 {manifest['zipSha256']})")
+    # Written last: a failed build leaves no update files describing it.
+    release_meta.write(os.path.dirname(out), update, changelog)
+    print(f"release assets for tag v{version}: {zip_name}, update.json, changelog.md")
 
 
 if __name__ == "__main__":

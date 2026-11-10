@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Full test suite: Go vet/tests (including network-namespace end-to-end tests
 # with real cores when KPM_TEST_CORES is set), shell script checks, a simulated
-# installer run and the WebUI end-to-end test.
+# installer run, the online-update metadata and the WebUI end-to-end test.
 #
 # env: GO, JSDOM_NODE_PATH (directory containing node_modules/jsdom)
 set -euo pipefail
@@ -84,6 +84,38 @@ mkdir -p "$tmp/real"; touch "$tmp/real/.delete-on-uninstall"; ln -s "$tmp/real" 
 dash "$tmp/uninstall.sh"
 [ -d "$tmp/real" ] || { echo "followed a symlinked data dir" >&2; exit 1; }
 echo "uninstall checks ok"
+
+step "release metadata"
+if command -v python3 >/dev/null; then
+  META="$tmp/meta"
+  mkdir -p "$META"
+  ver=$(sed -n 's/^version=//p' "$ROOT/module.prop" | tr -d '\r')
+  code=$(sed -n 's/^versionCode=//p' "$ROOT/module.prop" | tr -d '\r')
+  grep -q "Version     = \"$ver\"" "$ROOT/src/internal/buildinfo/buildinfo.go" || { echo "buildinfo.Version != module.prop version ($ver)" >&2; exit 1; }
+  grep -q "VersionCode = \"$code\"" "$ROOT/src/internal/buildinfo/buildinfo.go" || { echo "buildinfo.VersionCode != module.prop versionCode ($code)" >&2; exit 1; }
+  python3 -B "$ROOT/scripts/release_meta.py" "$ROOT/module.prop" "$ROOT/CHANGELOG.md" "$META/out"
+  grep -q "\"versionCode\": $code,\$" "$META/out/update.json"
+  grep -q "/releases/download/v$ver/ksu_proxy_manager-v$ver.zip\"" "$META/out/update.json"
+  grep -q "/releases/download/v$ver/changelog.md\"" "$META/out/update.json"
+  [ "$(head -n 1 "$META/out/changelog.md")" = "## $ver" ]
+  [ "$(grep -c '^## ' "$META/out/changelog.md")" = 1 ] || { echo "changelog.md carries more than one version" >&2; exit 1; }
+  reject() {
+    if python3 -B "$ROOT/scripts/release_meta.py" "$1" "$2" >/dev/null 2>&1; then
+      echo "release metadata accepted $3" >&2
+      exit 1
+    fi
+  }
+  sed 's/^versionCode=.*/versionCode=1/' "$ROOT/module.prop" > "$META/code.prop"
+  reject "$META/code.prop" "$ROOT/CHANGELOG.md" "a versionCode that does not follow the version"
+  sed '/^updateJson=/d' "$ROOT/module.prop" > "$META/nourl.prop"
+  reject "$META/nourl.prop" "$ROOT/CHANGELOG.md" "a module.prop without updateJson"
+  sed 's#^updateJson=.*#updateJson=http://example.com/update.json#' "$ROOT/module.prop" > "$META/url.prop"
+  reject "$META/url.prop" "$ROOT/CHANGELOG.md" "an updateJson outside the GitHub releases of the project"
+  printf '# 更新日志\n\n## 0.0.1\n\n- 旧版本\n' > "$META/old.md"
+  reject "$ROOT/module.prop" "$META/old.md" "a changelog without an entry for $ver"
+else
+  echo "python3 not found: release metadata checks skipped"
+fi
 
 step "frontend syntax"
 while IFS= read -r -d '' file; do

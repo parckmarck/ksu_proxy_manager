@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Build the flashable module: vet, compile both ABIs, stage the module
-# tree, inject the WebUI cache version, generate notices and package the zip.
+# tree, inject the WebUI cache version, generate notices and package the zip
+# together with the online-update files (dist/update.json, dist/changelog.md).
 #
 # usage: scripts/build.sh [--skip-vet]
 # env:   GO (go binary), BUILD_ID (defaults to a UTC timestamp)
@@ -16,6 +17,8 @@ VERSION_CODE=$(prop versionCode)
 [ "$(prop id)" = ksu_proxy_manager ] || { echo "module.prop id mismatch" >&2; exit 1; }
 grep -q "Version     = \"$VERSION\"" "$ROOT/src/internal/buildinfo/buildinfo.go" || { echo "buildinfo.Version != module.prop version ($VERSION)" >&2; exit 1; }
 grep -q "VersionCode = \"$VERSION_CODE\"" "$ROOT/src/internal/buildinfo/buildinfo.go" || { echo "buildinfo.VersionCode != module.prop versionCode ($VERSION_CODE)" >&2; exit 1; }
+# Fail before compiling when the online-update metadata is incomplete.
+python3 "$ROOT/scripts/release_meta.py" "$ROOT/module.prop" "$ROOT/CHANGELOG.md"
 BUILD_ID=${BUILD_ID:-$(date -u +%Y%m%d%H%M%S)}
 
 OUT="$ROOT/build/module"
@@ -80,4 +83,4 @@ fi
   cat "$ROOT/webroot/assets/vendor/lucide-LICENSE.txt"
 } > "$OUT/THIRD_PARTY_NOTICES.txt"
 
-python3 "$ROOT/scripts/package.py" "$OUT" "$DIST/ksu_proxy_manager-v$VERSION.zip" "$VERSION" "$VERSION_CODE" "$BUILD_ID"
+python3 "$ROOT/scripts/package.py" "$OUT" "$DIST/ksu_proxy_manager-v$VERSION.zip" "$VERSION" "$VERSION_CODE" "$BUILD_ID" "$ROOT/CHANGELOG.md"
