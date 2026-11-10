@@ -39,7 +39,13 @@ func Compare(current []config.Node, secrets config.Secrets, next []Parsed) Diff 
 			d.Added = append(d.Added, p.Node.Name)
 			continue
 		}
-		if fingerprint(o, secrets.Nodes[o.ID]) != fingerprint(p.Node, p.Secrets) {
+		changed := fingerprint(o, secrets.Nodes[o.ID]) != fingerprint(p.Node, p.Secrets)
+		// A chain supplied by the subscription replaces the stored one; an
+		// incoming node without one keeps whatever the user configured.
+		if p.Node.Upstream != "" && p.Node.Upstream != o.Upstream {
+			changed = true
+		}
+		if changed {
 			d.Changed = append(d.Changed, p.Node.Name)
 		} else {
 			d.Unchanged++

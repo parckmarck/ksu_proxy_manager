@@ -123,6 +123,7 @@ func parseSingBox(data []byte) Result {
 		r.issue("", "JSON 解析失败: %v", err)
 		return r
 	}
+	groups := map[string]bool{}
 	for _, raw := range append(doc.Outbounds, doc.Endpoints...) {
 		var ob sbOutbound
 		if err := json.Unmarshal(raw, &ob); err != nil {
@@ -130,11 +131,10 @@ func parseSingBox(data []byte) Result {
 			continue
 		}
 		switch ob.Type {
-		case "direct", "block", "dns", "selector", "urltest":
+		case "selector", "urltest":
+			groups[ob.Tag] = true
 			continue
-		}
-		if ob.Detour != "" {
-			r.issue(ob.Tag, "detour 前置路由无法完整导入，已跳过该节点")
+		case "direct", "block", "dns":
 			continue
 		}
 		if len(ob.Multiplex) > 0 && string(ob.Multiplex) != "null" && string(ob.Multiplex) != "false" {
@@ -145,8 +145,10 @@ func parseSingBox(data []byte) Result {
 			r.issue(ob.Tag, "%v", err)
 			continue
 		}
+		p.key, p.via = ob.Tag, ob.Detour
 		r.add(p)
 	}
+	r.resolveChains(groups)
 	if len(r.Nodes) == 0 && len(r.Issues) == 0 {
 		r.issue("", "未找到代理出站")
 	}

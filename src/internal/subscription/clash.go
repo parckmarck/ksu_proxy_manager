@@ -91,10 +91,6 @@ func parseClash(data []byte) Result {
 		return r
 	}
 	for _, m := range proxies {
-		if str(m, "dialer-proxy") != "" {
-			r.issue(str(m, "name"), "dialer-proxy 前置路由无法完整导入，已跳过该节点")
-			continue
-		}
 		for _, field := range []string{"smux", "multiplex"} {
 			if value, ok := m[field]; ok && value != nil && value != false {
 				r.issue(str(m, "name"), "%s 多路复用参数未导入", field)
@@ -105,8 +101,22 @@ func parseClash(data []byte) Result {
 			r.issue(str(m, "name"), "%v", err)
 			continue
 		}
+		p.key, p.via = str(m, "name"), str(m, "dialer-proxy")
 		r.add(p)
 	}
+	// Group names only improve the message for chains that go through a
+	// group, so a malformed proxy-groups section is not an error here.
+	var extra struct {
+		Groups []struct {
+			Name string `yaml:"name"`
+		} `yaml:"proxy-groups"`
+	}
+	_ = root.Decode(&extra)
+	groups := map[string]bool{}
+	for _, g := range extra.Groups {
+		groups[g.Name] = true
+	}
+	r.resolveChains(groups)
 	return r
 }
 

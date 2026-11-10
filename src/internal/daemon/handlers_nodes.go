@@ -200,10 +200,15 @@ func (d *Daemon) hImportNodes(_ http.ResponseWriter, r *http.Request) (any, erro
 	if len(res.Nodes) == 0 {
 		return map[string]any{"added": 0, "issues": res.Issues, "format": res.Format}, nil
 	}
+	for i := range res.Nodes {
+		res.Nodes[i].Node.ID = "m" + fsutil.RandomHex(6)
+		res.Nodes[i].Node.SubscriptionID = ""
+	}
+	// Chains between the pasted nodes need the IDs assigned above.
+	nodes, chainIssues := subscription.LinkUpstreams(res.Nodes)
+	res.Issues = append(res.Issues, chainIssues...)
 	next, err := d.store.Update(expectedRev(r), func(c *config.Config, s *config.Secrets) error {
-		for _, p := range res.Nodes {
-			p.Node.ID = "m" + fsutil.RandomHex(6)
-			p.Node.SubscriptionID = ""
+		for _, p := range nodes {
 			c.Nodes = append(c.Nodes, p.Node)
 			s.SetNodeSecrets(p.Node.ID, p.Secrets)
 		}
@@ -213,7 +218,7 @@ func (d *Daemon) hImportNodes(_ http.ResponseWriter, r *http.Request) (any, erro
 		return nil, err
 	}
 	saved := d.savedResult(next)
-	return map[string]any{"added": len(res.Nodes), "issues": res.Issues, "format": res.Format, "revision": saved.Revision, "pending": saved.Pending}, nil
+	return map[string]any{"added": len(nodes), "issues": res.Issues, "format": res.Format, "revision": saved.Revision, "pending": saved.Pending}, nil
 }
 
 type delayResult struct {

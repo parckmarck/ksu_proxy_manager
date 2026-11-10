@@ -162,6 +162,13 @@ func (d *Daemon) prepareRefresh(ctx context.Context, subID string) (*preview, er
 		return nil, fmt.Errorf("%s", msg)
 	}
 	subscription.AssignSubscriptionIDs(subID, nodes)
+	// Chains inside the subscription become upstream references now that the
+	// IDs are known. A node whose upstream was filtered out is dropped.
+	nodes, chainIssues := subscription.LinkUpstreams(nodes)
+	if len(nodes) == 0 {
+		return nil, errors.New("过滤后没有剩余节点：其余节点的前置节点已被过滤")
+	}
+	issues := append(res.Issues, chainIssues...)
 	var current []config.Node
 	for _, n := range cfg.Nodes {
 		if n.SubscriptionID == subID {
@@ -170,7 +177,7 @@ func (d *Daemon) prepareRefresh(ctx context.Context, subID string) (*preview, er
 	}
 	p := &preview{
 		ID: fsutil.RandomHex(8), SubID: subID, Revision: cfg.Revision, Nodes: nodes, Diff: subscription.Compare(current, sec, nodes),
-		Usage: f.Usage, Issues: res.Issues, Format: res.Format, ExpiresAt: time.Now().Add(15 * time.Minute),
+		Usage: f.Usage, Issues: issues, Format: res.Format, ExpiresAt: time.Now().Add(15 * time.Minute),
 	}
 	return p, nil
 }
@@ -183,7 +190,8 @@ func (p *preview) view() previewView {
 	return previewView{PreviewID: p.ID, Format: p.Format, Count: len(p.Nodes), Diff: p.Diff, Issues: issues, Usage: p.Usage}
 }
 
-// commitNodes replaces a subscription's nodes, keeping user-chosen chains.
+// commitNodes replaces a subscription's nodes. A chain defined by the
+// subscription itself wins; other nodes keep the chain the user chose.
 func (d *Daemon) commitNodes(p *preview) (config.Config, []string, error) {
 	var notes []string
 	next, err := d.store.Update(p.Revision, func(c *config.Config, sec *config.Secrets) error {
@@ -214,9 +222,12 @@ func (d *Daemon) commitNodes(p *preview) (config.Config, []string, error) {
 			keep = append(keep, n)
 		}
 		fresh := make([]config.Node, 0, len(p.Nodes))
+		provided := map[string]bool{}
 		for _, pn := range p.Nodes {
 			n := config.Clone(pn.Node)
-			if up := upstream[n.ID]; up != "" && !removed[up] {
+			if n.Upstream != "" {
+				provided[n.ID] = true
+			} else if up := upstream[n.ID]; up != "" && !removed[up] {
 				n.Upstream = up
 			}
 			fresh = append(fresh, n)
@@ -231,6 +242,7 @@ func (d *Daemon) commitNodes(p *preview) (config.Config, []string, error) {
 		nodes = append(nodes, keep[insertAt:]...)
 		c.Nodes = nodes
 		notes = detachNodes(c, removed)
+		notes = append(notes, repairChains(c, provided)...)
 		sub.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 		sub.LastError = ""
 		if p.Usage != nil {
@@ -239,6 +251,56 @@ func (d *Daemon) commitNodes(p *preview) (config.Config, []string, error) {
 		return nil
 	})
 	return next, notes, err
+}
+
+// repairChains cuts chain links that would make the configuration invalid
+// after a subscription refresh: a loop, a missing upstream or more layers
+// than allowed. Links of the nodes in provided come from the subscription
+// itself and are only cut when no other link of the chain can be, so a chain
+// the user added earlier gives way instead of blocking every later update.
+func repairChains(c *config.Config, provided map[string]bool) []string {
+	index := make(map[string]int, len(c.Nodes))
+	for i := range c.Nodes {
+		index[c.Nodes[i].ID] = i
+	}
+	var notes []string
+	for i := range c.Nodes {
+		for c.Nodes[i].Upstream != "" {
+			path, ok := chainPath(c.Nodes, index, i)
+			if ok {
+				break
+			}
+			cut := i
+			for _, j := range path {
+				if !provided[c.Nodes[j].ID] {
+					cut = j
+					break
+				}
+			}
+			notes = append(notes, fmt.Sprintf("节点 %s 的前置关系与本次订阅更新冲突，已改为直接连接", c.Nodes[cut].Name))
+			c.Nodes[cut].Upstream = ""
+		}
+	}
+	return notes
+}
+
+// chainPath follows the chain of node i the way config.Validate does. It
+// returns the nodes whose links were followed and whether the chain is valid;
+// every returned node has a non-empty upstream when it is not.
+func chainPath(nodes []config.Node, index map[string]int, i int) ([]int, bool) {
+	path := []int{i}
+	seen := map[string]bool{nodes[i].ID: true}
+	cur := nodes[i].Upstream
+	for depth := 0; cur != ""; depth++ {
+		j, found := index[cur]
+		if !found || seen[cur] || depth >= 3 {
+			return path, false
+		}
+		seen[cur] = true
+		path = append(path, j)
+		cur = nodes[j].Upstream
+	}
+	return path, true
 }
 
 // scrubSubError removes the subscription address and secret-looking parts
@@ -331,7 +393,11 @@ func (d *Daemon) refreshAndCommit(ctx context.Context, subID string) error {
 		}
 		return d.scrubSubError(subID, err)
 	}
-	_, _, err = d.commitNodes(p)
+	_, notes, err := d.commitNodes(p)
+	// Nobody sees the notes of an unattended update, so keep them in the log.
+	for _, note := range notes {
+		d.log.Info("subscription", "订阅更新调整了节点引用", "id", subID, "note", note)
+	}
 	return err
 }
 

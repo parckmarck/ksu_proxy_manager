@@ -148,7 +148,7 @@ export async function editNode(nodes, node, onSaved) {
     ? { ...structuredClone(editing), pluginOptsText: kvText(editing.pluginOpts), secrets: {}, transport: editing.transport || { type: 'tcp' }, tls: editing.tls || { enabled: false } }
     : { name: '', type: 'shadowsocks', server: '', port: 443, udp: true, cipher: 'aes-128-gcm', security: 'auto', secrets: {}, transport: { type: 'tcp' }, tls: { enabled: false } };
   const f = form(nodeFields(nodes, editing), initial);
-  const note = editing && editing.subscriptionId ? h('p', { class: 'banner warn small' }, '该节点来自订阅，订阅更新时修改会被覆盖（前置节点设置会保留）。') : null;
+  const note = editing && editing.subscriptionId ? h('p', { class: 'banner warn small' }, '该节点来自订阅，订阅更新时修改会被覆盖（自行设置的前置节点会保留；订阅自带前置节点时以订阅为准）。') : null;
   await modal(editing ? '编辑节点' : '添加节点', h('div', null, note, f.el), [
     { label: '取消', value: null },
     { label: '保存', cls: 'primary', onclick: async () => {

@@ -20,9 +20,17 @@ const MaxSize = 8 << 20
 // MaxNodes bounds the number of nodes accepted from one source.
 const MaxNodes = 3000
 
+// maxIssues bounds the problems reported for one source.
+const maxIssues = 200
+
 type Parsed struct {
 	Node    config.Node       `json:"node"`
 	Secrets map[string]string `json:"-"`
+
+	// key is the node's own name in the source document and via the name of
+	// the outbound it dials through (Clash dialer-proxy, sing-box detour).
+	// LinkUpstreams turns them into Node.Upstream once IDs are final.
+	key, via string
 }
 
 type Issue struct {
@@ -37,7 +45,7 @@ type Result struct {
 }
 
 func (r *Result) issue(name, format string, args ...any) {
-	if len(r.Issues) < 200 {
+	if len(r.Issues) < maxIssues {
 		r.Issues = append(r.Issues, Issue{Name: name, Message: fmt.Sprintf(format, args...)})
 	}
 }
