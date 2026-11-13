@@ -143,6 +143,16 @@ func Render(in Input) (*Output, error) {
 	}
 	in.Config, in.Secrets = cfg, sec
 	p := &plan{in: &in, nodeTag: map[string]string{}, groupTag: map[string]string{}, rulesets: map[RulesetID]string{}, needed: map[RulesetID]bool{}, missing: map[RulesetID]bool{}}
+	// Reserve the compatibility notice before per-node warnings can fill the
+	// bounded list. One notice covers every fallback group in this render.
+	if in.Engine == config.EngineSingBox {
+		for _, g := range cfg.Groups {
+			if g.Type == "fallback" {
+				p.warn("sing-box 不支持故障转移策略组，已使用 urltest 自动测速选优，无法保持首个可用成员的优先顺序")
+				break
+			}
+		}
+	}
 	p.buildNodes()
 	p.buildGroups()
 	if err := p.buildDNS(); err != nil {

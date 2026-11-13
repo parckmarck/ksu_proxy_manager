@@ -383,6 +383,50 @@ await test('nodes: imported headers survive form rename and reload', async () =>
   assert.equal(saved.secrets.uuid, true);
 });
 
+await test('fallback group preserves health settings and explicit member priority', async () => {
+  await go('proxies');
+  click($$('.section').find((s) => s.querySelector('h2')?.textContent === '代理组设置').querySelector('button'));
+  await waitFor(dialog, 'group dialog');
+  const field = (label) => inDialog('.field').find((f) => f.querySelector('.label').textContent === label);
+  const type = field('类型').querySelector('select');
+  assert.ok([...type.options].some((o) => o.value === 'fallback'), 'fallback option');
+  setInput(field('名称').querySelector('input'), '故障转移测试组');
+  type.value = 'fallback';
+  type.dispatchEvent(new w.Event('change'));
+  assert.equal(field('测速地址').hidden, false);
+  assert.equal(field('切换容差（毫秒）').hidden, true);
+  assert.match(dialog().textContent, /sing-box.*自动测速/);
+  setInput(field('测速地址').querySelector('input'), 'http://health.example.test/check');
+  setInput(field('测速间隔（秒）').querySelector('input'), '60');
+  const checks = [...field('包含节点').querySelectorAll('input')];
+  assert.ok(checks.length >= 3);
+  checks[0].click(); checks[1].click();
+  const initialNodes = (await api.get('/api/v1/nodes')).nodes;
+  const first = initialNodes[0].id, second = initialNodes[1].id;
+  click(dialog().querySelector('[aria-label="上移 ' + initialNodes[1].name + '"]'));
+  checks[2].click();
+  await dialogButton('保存');
+  await waitFor(async () => (await api.get('/api/v1/groups')).groups.some((g) => g.name === '故障转移测试组'), 'fallback saved');
+  const saved = (await api.get('/api/v1/groups')).groups.find((g) => g.name === '故障转移测试组');
+  assert.equal(saved.type, 'fallback');
+  assert.equal(saved.testUrl, 'http://health.example.test/check');
+  assert.equal(saved.intervalSec, 60);
+  assert.deepEqual(saved.nodes.slice(0, 2), [second, first]);
+  assert.equal(saved.includeDirect, false);
+  await api.put('/api/v1/groups/' + saved.id, { ...saved, includeAll: true });
+  await go('overview'); await go('proxies');
+  const row = await waitFor(() => $$('.list li').find((li) => li.querySelector('.title')?.textContent.includes('故障转移测试组')), 'fallback row');
+  assert.match(row.textContent, /故障转移/);
+  click([...row.querySelectorAll('button')].find((b) => b.textContent === '编辑'));
+  await waitFor(dialog, 'fallback edit');
+  assert.equal(field('包含节点').hidden, false, 'explicit priority remains editable with includeAll');
+  assert.equal(field('类型').querySelector('select').value, 'fallback');
+  assert.equal(field('测速间隔（秒）').querySelector('input').value, '60');
+  await dialogButton('保存');
+  assert.deepEqual((await api.get('/api/v1/groups')).groups.find((g) => g.id === saved.id).nodes, saved.nodes);
+  await api.del('/api/v1/groups/' + saved.id);
+});
+
 await test('subscriptions: add, preview and commit', async () => {
   await go('subscriptions');
   click(byText('button', '添加'));

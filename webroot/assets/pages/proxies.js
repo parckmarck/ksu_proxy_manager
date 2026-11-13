@@ -18,6 +18,7 @@ const TLS_REQUIRED = new Set(['trojan', 'hysteria2', 'tuic', 'anytls']);
 const FINGERPRINTS = ['', 'chrome', 'firefox', 'safari', 'ios', 'android', 'edge', 'random'];
 
 const typeLabel = (t) => (NODE_TYPES.find(([v]) => v === t) || [t, t])[1];
+const groupTypeLabel = (t) => ({ select: '手动', urltest: '自动测速', fallback: '故障转移' })[t] || t;
 const is = (...types) => (v) => types.includes(v.type);
 
 function kvText(m) {
@@ -203,30 +204,70 @@ function groupFields(cfg, group) {
   const subOpts = () => cfg.subscriptions.map((s) => [s.id, s.name]);
   return [
     { key: 'name', label: '名称' },
-    { key: 'type', label: '类型', type: 'select', options: [['select', '手动选择'], ['urltest', '自动测速选优']] },
+    { key: 'type', label: '类型', type: 'select', options: [['select', '手动选择'], ['urltest', '自动测速选优'], ['fallback', '故障转移']], hint: '故障转移按优先顺序使用首个可用出口；sing-box 会改用自动测速选优，行为不同。' },
     { key: 'includeAll', label: '包含全部节点', type: 'switch' },
-    { key: 'subscriptions', label: '包含订阅的全部节点', type: 'checks', options: subOpts, show: (v) => !v.includeAll },
-    { key: 'nodes', label: '包含节点', type: 'checks', options: nodeOpts, show: (v) => !v.includeAll },
+    { key: 'subscriptions', label: '包含订阅的全部节点', type: 'checks', options: subOpts, show: (v) => !v.includeAll || v.type === 'fallback' },
+    { key: 'nodes', label: '包含节点', type: 'checks', options: nodeOpts, show: (v) => !v.includeAll || v.type === 'fallback' },
     { key: 'groups', label: '包含代理组', type: 'checks', options: groupOpts },
     { key: 'filter', label: '名称包含（正则）', placeholder: '例如 香港|HK', hint: '只保留名称匹配的节点' },
     { key: 'excludeFilter', label: '名称排除（正则）', placeholder: '例如 剩余|过期' },
     { key: 'includeDirect', label: '包含“直连”选项', type: 'switch', show: (v) => v.type === 'select' },
-    { key: 'testUrl', label: '测速地址', placeholder: 'https://www.gstatic.com/generate_204', show: (v) => v.type === 'urltest' },
-    { key: 'intervalSec', label: '测速间隔（秒）', type: 'number', min: 30, show: (v) => v.type === 'urltest' },
+    { key: 'testUrl', label: '测速地址', placeholder: 'https://www.gstatic.com/generate_204', show: (v) => v.type === 'urltest' || v.type === 'fallback' },
+    { key: 'intervalSec', label: '测速间隔（秒）', type: 'number', min: 30, max: 86400, show: (v) => v.type === 'urltest' || v.type === 'fallback' },
     { key: 'toleranceMs', label: '切换容差（毫秒）', type: 'number', min: 0, show: (v) => v.type === 'urltest' },
   ];
 }
 
 async function editGroup(cfg, group, onSaved) {
   const initial = group ? structuredClone(group) : { name: '', type: 'select', nodes: [], groups: [], subscriptions: [], includeAll: false, includeDirect: true, intervalSec: 300, toleranceMs: 50 };
-  const f = form(groupFields(cfg, group), initial);
-  await modal(group ? '编辑代理组' : '添加代理组', f.el, [
+  const priority = { nodes: [...initial.nodes], groups: [...initial.groups] };
+  const priorityBox = h('div');
+  const fields = groupFields(cfg, group);
+  for (const field of fields) {
+    if (field.key === 'nodes' || field.key === 'groups') {
+      const key = field.key;
+      field.onchange = (v, values) => {
+        if (values.type === 'fallback') {
+          values[key] = [...priority[key].filter((id) => v.includes(id)), ...v.filter((id) => !priority[key].includes(id))];
+        }
+        priority[key] = [...values[key]];
+        renderPriority();
+      };
+    } else if (field.key === 'type' || field.key === 'includeAll') field.onchange = () => renderPriority();
+  }
+  const f = form(fields, initial);
+  function renderPriority() {
+    clear(priorityBox);
+    priorityBox.hidden = f.values.type !== 'fallback';
+    if (priorityBox.hidden) return;
+    priorityBox.append(h('h3', null, '出口优先顺序'), h('p', { class: 'small muted' }, '包含的代理组优先，其次是下列显式节点，再按节点列表顺序追加订阅或全部节点；重复出口只保留首次出现。上移可提高优先级。'));
+    for (const key of ['groups', 'nodes']) {
+      const names = Object.fromEntries(cfg[key].map((item) => [item.id, item.name]));
+      const ids = f.values[key];
+      ids.forEach((id, i) => {
+        const move = (delta) => {
+          [ids[i], ids[i + delta]] = [ids[i + delta], ids[i]];
+          priority[key] = [...ids];
+          renderPriority();
+        };
+        const up = btn('上移', () => move(-1), 'small');
+        const down = btn('下移', () => move(1), 'small');
+        up.disabled = i === 0; down.disabled = i === ids.length - 1;
+        up.setAttribute('aria-label', '上移 ' + names[id]);
+        down.setAttribute('aria-label', '下移 ' + names[id]);
+        priorityBox.append(h('div', { class: 'row' }, h('span', { class: 'grow break' }, `${i + 1}. ${names[id] || id}`), up, down));
+      });
+    }
+  }
+  renderPriority();
+  await modal(group ? '编辑代理组' : '添加代理组', h('div', null, f.el, priorityBox), [
     { label: '取消', value: null },
     { label: '保存', cls: 'primary', onclick: async () => {
       const g = structuredClone(f.values);
       g.name = String(g.name || '').trim();
-      if (g.includeAll) { g.nodes = []; g.subscriptions = []; }
-      if (g.type !== 'urltest') { delete g.testUrl; delete g.intervalSec; delete g.toleranceMs; }
+      if (g.includeAll && g.type !== 'fallback') { g.nodes = []; g.subscriptions = []; }
+      if (g.type !== 'urltest' && g.type !== 'fallback') { delete g.testUrl; delete g.intervalSec; }
+      if (g.type !== 'urltest') delete g.toleranceMs;
       try {
         if (group) await put('/api/v1/groups/' + encodeURIComponent(group.id), g);
         else await post('/api/v1/groups', g);
@@ -316,7 +357,7 @@ export default function mount(view, ctx) {
       }
       runtime.append(h('details', { class: 'runtime-group', open: groupOpen.has(g.id) ? groupOpen.get(g.id) : index === 0, dataset: { group: g.id } },
         h('summary', null, icon('chevronRight'),
-          h('div', { class: 'row grow' }, h('b', { class: 'break' }, g.name), chip(g.type === 'select' ? '手动' : '自动'),
+          h('div', { class: 'row grow' }, h('b', { class: 'break' }, g.name), chip(groupTypeLabel(g.type)),
             h('span', { class: 'group-selection ellipsis' }, (g.members.find((m) => m.ref === g.now) || {}).name || g.now || '未选择'))),
         h('div', { class: 'group-tools' }, h('span', { class: 'small muted' }, `${g.members.length} 个成员`),
           nodeIds.length ? toolBtn('测速', 'gauge', () => testDelay(nodeIds), 'ghost') : null),
@@ -369,7 +410,7 @@ export default function mount(view, ctx) {
       if (g.groups.length) parts.push('组：' + g.groups.map((x) => names[x] || x).join('、'));
       if (g.filter) parts.push('包含 /' + g.filter + '/');
       ul.append(h('li', null,
-        h('div', { class: 'grow' }, h('div', { class: 'title' }, g.name, ' ', chip(g.type === 'select' ? '手动' : '自动')),
+        h('div', { class: 'grow' }, h('div', { class: 'title' }, g.name, ' ', chip(groupTypeLabel(g.type))),
           h('div', { class: 'sub' }, `${(cfg.members[g.id] || []).length} 个成员 · ` + (parts.join(' · ') || '无成员'))),
         h('div', { class: 'row-actions' },
         toolBtn('编辑', 'pencil', () => editGroup(cfg, g, loadAll)),

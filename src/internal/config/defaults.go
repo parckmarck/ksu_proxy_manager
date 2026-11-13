@@ -153,7 +153,7 @@ func (c *Config) Normalize() {
 		if g.Subscriptions == nil {
 			g.Subscriptions = []string{}
 		}
-		if g.Type == "urltest" {
+		if g.Type == "urltest" || g.Type == "fallback" {
 			g.IncludeDirect = false
 			g.Selected = ""
 		}

@@ -74,11 +74,17 @@ func renderMihomo(p *plan) ([]byte, error) {
 	var groups []any
 	for _, g := range p.groups {
 		m := omap{{"name", g.tag}}
-		if g.group.Type == "urltest" {
-			m = append(m, kv{"type", "url-test"}, kv{"proxies", g.members},
+		if g.group.Type == "urltest" || g.group.Type == "fallback" {
+			typ := "url-test"
+			if g.group.Type == "fallback" {
+				typ = "fallback"
+			}
+			m = append(m, kv{"type", typ}, kv{"proxies", g.members},
 				kv{"url", orDefault(g.group.TestURL, defaultTestURL)},
-				kv{"interval", orDefaultInt(g.group.IntervalSec, defaultInterval)},
-				kv{"tolerance", orDefaultInt(g.group.ToleranceMs, defaultTolerate)})
+				kv{"interval", orDefaultInt(g.group.IntervalSec, defaultInterval)})
+			if g.group.Type == "urltest" {
+				m = append(m, kv{"tolerance", orDefaultInt(g.group.ToleranceMs, defaultTolerate)})
+			}
 		} else {
 			m = append(m, kv{"type", "select"}, kv{"proxies", g.members})
 		}

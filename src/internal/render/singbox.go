@@ -167,7 +167,7 @@ func renderSingBox(p *plan) ([]byte, error) {
 		}
 	}
 	for _, g := range p.groups {
-		if g.group.Type == "urltest" {
+		if g.group.Type == "urltest" || g.group.Type == "fallback" {
 			outbounds = append(outbounds, jmap{{"type", "urltest"}, {"tag", g.tag}, {"outbounds", g.members},
 				{"url", orDefault(g.group.TestURL, defaultTestURL)},
 				{"interval", fmt.Sprintf("%ds", orDefaultInt(g.group.IntervalSec, defaultInterval))},

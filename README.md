@@ -1,4 +1,4 @@
-# KSU Proxy Manager 2.1.0
+# KSU Proxy Manager 2.1.1
 
 KernelSU / Magisk / APatch 代理管理模块。使用 Mihomo 或 sing-box 作为代理核心，通过 TUN 透明代理设备流量，提供按应用分流、订阅管理、分流规则与 DNS 设置，全部在模块自带的 WebUI 中完成。
 
@@ -12,7 +12,7 @@ KernelSU / Magisk / APatch 代理管理模块。使用 Mihomo 或 sing-box 作�
 - **热点共享**：可选代理 Wi-Fi 热点与 USB 共享的设备。
 - **节点**：Shadowsocks、VMess、VLESS（含 Reality）、Trojan、Hysteria2、TUIC、AnyTLS、SOCKS5、HTTP(S)、WireGuard；支持链式代理（前置节点，最多 3 层）。
 - **订阅**：分享链接 / Base64 / Clash YAML / sing-box JSON；更新前预览新增、删除与变更；节点 ID 稳定，代理组引用不会因更新失效；订阅内节点之间的 `dialer-proxy` / `detour` 自动转为前置节点；显示流量与到期时间；可定时更新。
-- **分流**：预设（中国大陆直连 / 全部代理 / 仅自定义）、广告拦截、阻止 QUIC，自定义规则（域名、IP 段、geosite/geoip 规则集、应用包名、端口、网络类型）；规则/全局/直连模式即时切换。
+- **分流**：预设（中国大陆直连 / 全部代理 / 仅自定义）、广告拦截、阻止 QUIC，自定义规则（域名、IP 段、geosite/geoip 规则集、应用包名、端口、网络类型）；规则/全局/直连模式即时切换。代理组支持手动选择、自动测速及故障转移；故障转移在 Mihomo 按顺序使用首个可用出口，可调整显式成员优先级；sing-box 改用自动测速选优并提示行为差异。
 - **DNS**：Fake-IP 或真实 IP 模式，直连与代理 DNS 分离，支持 UDP/TCP/DoT/DoH/DoQ。
 - **可靠性**：启动前由核心自检配置，失败不影响正在运行的核心；新配置启动失败自动回滚；核心崩溃或卡死时按策略自动重启；“防泄漏”开关决定核心异常时被代理应用是断网还是直连。
 - **安全**：凭据与订阅地址只保存在设备上，API 不返回明文；日志自动脱敏；所有数据文件仅 root 可读。
@@ -26,7 +26,7 @@ KernelSU / Magisk / APatch 代理管理模块。使用 Mihomo 或 sing-box 作�
 
 ## 安装与升级
 
-1. 在管理器中刷入 `ksu_proxy_manager-v2.1.0.zip`，重启。
+1. 在管理器中刷入 `ksu_proxy_manager-v2.1.1.zip`，重启。
 2. 打开模块 WebUI：
    1. 「核心」页：下载 Mihomo 或 sing-box（或导入本地文件），在“使用的核心”中选择。
    2. 「订阅」页添加订阅，或在「节点」页导入分享链接 / 手动添加。

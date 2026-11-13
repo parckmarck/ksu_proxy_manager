@@ -1,7 +1,7 @@
 id=ksu_proxy_manager
 name=KSU Proxy Manager
-version=2.1.0
-versionCode=20100
+version=2.1.1
+versionCode=20101
 author=ksu_proxy_manager
 description=KernelSU 双核心代理管理：Mihomo / sing-box、TUN 透明代理、应用分流、订阅与 WebUI。模块不内置代理核心。
 updateJson=https://github.com/parckmarck/ksu_proxy_manager/releases/latest/download/update.json
