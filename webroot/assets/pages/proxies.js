@@ -18,7 +18,7 @@ const TLS_REQUIRED = new Set(['trojan', 'hysteria2', 'tuic', 'anytls']);
 const FINGERPRINTS = ['', 'chrome', 'firefox', 'safari', 'ios', 'android', 'edge', 'random'];
 
 const typeLabel = (t) => (NODE_TYPES.find(([v]) => v === t) || [t, t])[1];
-const groupTypeLabel = (t) => ({ select: '手动', urltest: '自动测速', fallback: '故障转移' })[t] || t;
+const groupTypeLabel = (t) => ({ select: '手动', urltest: '自动测速', fallback: '故障转移', 'load-balance': '负载均衡' })[t] || t;
 const is = (...types) => (v) => types.includes(v.type);
 
 function kvText(m) {
@@ -204,7 +204,8 @@ function groupFields(cfg, group) {
   const subOpts = () => cfg.subscriptions.map((s) => [s.id, s.name]);
   return [
     { key: 'name', label: '名称' },
-    { key: 'type', label: '类型', type: 'select', options: [['select', '手动选择'], ['urltest', '自动测速选优'], ['fallback', '故障转移']], hint: '故障转移按优先顺序使用首个可用出口；sing-box 会改用自动测速选优，行为不同。' },
+    { key: 'type', label: '类型', type: 'select', options: [['select', '手动选择'], ['urltest', '自动测速选优'], ['fallback', '故障转移'], ['load-balance', '负载均衡（仅 Mihomo）']], hint: '故障转移按优先顺序使用首个可用出口；sing-box 会改用自动测速选优，行为不同。负载均衡仅支持 Mihomo，切换 sing-box 前须更改组类型。' },
+    { key: 'strategy', label: '均衡策略', type: 'select', options: [['consistent-hashing', '一致性哈希（同目标固定出口）'], ['round-robin', '轮询（新连接轮换出口）'], ['sticky-sessions', '粘性会话（同来源与目标固定出口）']], show: (v) => v.type === 'load-balance', hint: '轮询可能让同一服务的不同连接使用不同出口；粘性会话缓存约 10 分钟。节点故障或成员变化仍可能切换出口。' },
     { key: 'includeAll', label: '包含全部节点', type: 'switch' },
     { key: 'subscriptions', label: '包含订阅的全部节点', type: 'checks', options: subOpts, show: (v) => !v.includeAll || v.type === 'fallback' },
     { key: 'nodes', label: '包含节点', type: 'checks', options: nodeOpts, show: (v) => !v.includeAll || v.type === 'fallback' },
@@ -212,14 +213,15 @@ function groupFields(cfg, group) {
     { key: 'filter', label: '名称包含（正则）', placeholder: '例如 香港|HK', hint: '只保留名称匹配的节点' },
     { key: 'excludeFilter', label: '名称排除（正则）', placeholder: '例如 剩余|过期' },
     { key: 'includeDirect', label: '包含“直连”选项', type: 'switch', show: (v) => v.type === 'select' },
-    { key: 'testUrl', label: '测速地址', placeholder: 'https://www.gstatic.com/generate_204', show: (v) => v.type === 'urltest' || v.type === 'fallback' },
-    { key: 'intervalSec', label: '测速间隔（秒）', type: 'number', min: 30, max: 86400, show: (v) => v.type === 'urltest' || v.type === 'fallback' },
+    { key: 'testUrl', label: '测速地址', placeholder: 'https://www.gstatic.com/generate_204', show: (v) => ['urltest', 'fallback', 'load-balance'].includes(v.type) },
+    { key: 'intervalSec', label: '测速间隔（秒）', type: 'number', min: 30, max: 86400, show: (v) => ['urltest', 'fallback', 'load-balance'].includes(v.type) },
     { key: 'toleranceMs', label: '切换容差（毫秒）', type: 'number', min: 0, show: (v) => v.type === 'urltest' },
   ];
 }
 
 async function editGroup(cfg, group, onSaved) {
   const initial = group ? structuredClone(group) : { name: '', type: 'select', nodes: [], groups: [], subscriptions: [], includeAll: false, includeDirect: true, intervalSec: 300, toleranceMs: 50 };
+  initial.strategy ||= 'consistent-hashing';
   const priority = { nodes: [...initial.nodes], groups: [...initial.groups] };
   const priorityBox = h('div');
   const fields = groupFields(cfg, group);
@@ -266,8 +268,9 @@ async function editGroup(cfg, group, onSaved) {
       const g = structuredClone(f.values);
       g.name = String(g.name || '').trim();
       if (g.includeAll && g.type !== 'fallback') { g.nodes = []; g.subscriptions = []; }
-      if (g.type !== 'urltest' && g.type !== 'fallback') { delete g.testUrl; delete g.intervalSec; }
+      if (!['urltest', 'fallback', 'load-balance'].includes(g.type)) { delete g.testUrl; delete g.intervalSec; }
       if (g.type !== 'urltest') delete g.toleranceMs;
+      if (g.type !== 'load-balance') delete g.strategy;
       try {
         if (group) await put('/api/v1/groups/' + encodeURIComponent(group.id), g);
         else await post('/api/v1/groups', g);
@@ -340,7 +343,7 @@ export default function mount(view, ctx) {
         const timeout = id && delays[id]?.error;
         const label = timeout ? '超时' : ms ? ms + ' ms' : '未测速';
         grid.append(h('button', {
-          type: 'button', class: 'member' + (g.now === m.ref ? ' on' : ''), title: m.name, 'aria-pressed': g.now === m.ref,
+          type: 'button', class: 'member' + (g.type !== 'load-balance' && g.now === m.ref ? ' on' : ''), title: m.name, 'aria-pressed': g.type !== 'load-balance' && g.now === m.ref,
           disabled: g.type !== 'select', dataset: { member: m.ref, group: g.id },
           onclick: g.type === 'select' ? async () => {
             if (selecting.has(g.id)) return;
@@ -358,7 +361,7 @@ export default function mount(view, ctx) {
       runtime.append(h('details', { class: 'runtime-group', open: groupOpen.has(g.id) ? groupOpen.get(g.id) : index === 0, dataset: { group: g.id } },
         h('summary', null, icon('chevronRight'),
           h('div', { class: 'row grow' }, h('b', { class: 'break' }, g.name), chip(groupTypeLabel(g.type)),
-            h('span', { class: 'group-selection ellipsis' }, (g.members.find((m) => m.ref === g.now) || {}).name || g.now || '未选择'))),
+            h('span', { class: 'group-selection ellipsis' }, g.type === 'load-balance' ? '按连接分配' : (g.members.find((m) => m.ref === g.now) || {}).name || g.now || '未选择'))),
         h('div', { class: 'group-tools' }, h('span', { class: 'small muted' }, `${g.members.length} 个成员`),
           nodeIds.length ? toolBtn('测速', 'gauge', () => testDelay(nodeIds), 'ghost') : null),
         g.members.length ? grid : h('div', { class: 'small muted' }, '没有成员（将使用直连）')));

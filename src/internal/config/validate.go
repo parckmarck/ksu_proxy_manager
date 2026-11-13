@@ -192,7 +192,17 @@ func Validate(c *Config, sec *Secrets) error {
 		names[name] = true
 		switch g.Type {
 		case "select":
-		case "urltest", "fallback":
+		case "urltest", "fallback", "load-balance":
+			if g.Type == "load-balance" {
+				if c.Settings.Engine == EngineSingBox {
+					return fieldErr(p+".type", "sing-box 不支持负载均衡策略组 %s，请使用 Mihomo 或先更改该组类型", g.Name)
+				}
+				switch g.Strategy {
+				case "", "consistent-hashing", "round-robin", "sticky-sessions":
+				default:
+					return fieldErr(p+".strategy", "均衡策略必须为 consistent-hashing、round-robin 或 sticky-sessions")
+				}
+			}
 			if g.TestURL != "" {
 				if u, err := url.Parse(g.TestURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 					return fieldErr(p+".testUrl", "测速地址必须为 http(s) URL")
@@ -205,7 +215,7 @@ func Validate(c *Config, sec *Secrets) error {
 				return fieldErr(p+".toleranceMs", "容差须在 0..5000 毫秒")
 			}
 		default:
-			return fieldErr(p+".type", "代理组类型必须为 select、urltest 或 fallback")
+			return fieldErr(p+".type", "代理组类型必须为 select、urltest、fallback 或 load-balance")
 		}
 		for _, id := range g.Nodes {
 			if nodes[id] == nil {

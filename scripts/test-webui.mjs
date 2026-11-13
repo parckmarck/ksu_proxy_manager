@@ -427,6 +427,51 @@ await test('fallback group preserves health settings and explicit member priorit
   await api.del('/api/v1/groups/' + saved.id);
 });
 
+await test('load-balance group persists strategy and health settings', async () => {
+  await go('proxies');
+  click($$('.section').find((s) => s.querySelector('h2')?.textContent === '代理组设置').querySelector('button'));
+  await waitFor(dialog, 'balance group dialog');
+  const field = (label) => inDialog('.field').find((f) => f.querySelector('.label').textContent === label);
+  const type = field('类型').querySelector('select');
+  assert.ok([...type.options].some((o) => o.value === 'load-balance'), 'load-balance option');
+  setInput(field('名称').querySelector('input'), '负载均衡测试组');
+  type.value = 'load-balance'; type.dispatchEvent(new w.Event('change'));
+  assert.equal(field('均衡策略').hidden, false);
+  assert.equal(field('测速地址').hidden, false);
+  assert.equal(field('切换容差（毫秒）').hidden, true);
+  assert.equal(field('包含“直连”选项').hidden, true);
+  assert.match(dialog().textContent, /负载均衡.*Mihomo/);
+  assert.equal(field('均衡策略').querySelector('select').value, 'consistent-hashing');
+  const strategy = field('均衡策略').querySelector('select');
+  strategy.value = 'round-robin'; strategy.dispatchEvent(new w.Event('change'));
+  setInput(field('测速地址').querySelector('input'), 'http://health.example.test/balance');
+  setInput(field('测速间隔（秒）').querySelector('input'), '90');
+  field('包含节点').querySelector('input').click();
+  await dialogButton('保存');
+  const saved = await waitFor(async () => (await api.get('/api/v1/groups')).groups.find((g) => g.name === '负载均衡测试组'), 'balance saved');
+  assert.equal(saved.type, 'load-balance'); assert.equal(saved.strategy, 'round-robin');
+  assert.equal(saved.testUrl, 'http://health.example.test/balance'); assert.equal(saved.intervalSec, 90);
+  assert.equal(saved.includeDirect, false); assert.equal(saved.selected || '', '');
+  await waitFor(() => document.querySelector(`details[data-group="${saved.id}"]`), 'balance runtime view');
+  const runtimeGroup = document.querySelector(`details[data-group="${saved.id}"]`);
+  assert.match(runtimeGroup.querySelector('summary').textContent, /按连接分配/);
+  assert.equal(runtimeGroup.querySelectorAll('.member.on').length, 0);
+  const row = await waitFor(() => $$('.list li').find((li) => li.querySelector('.title')?.textContent.includes('负载均衡测试组')), 'balance row');
+  assert.match(row.textContent, /负载均衡/);
+  click([...row.querySelectorAll('button')].find((b) => b.textContent === '编辑'));
+  await waitFor(dialog, 'balance reopen');
+  assert.equal(field('均衡策略').querySelector('select').value, 'round-robin');
+  assert.equal(field('测速地址').querySelector('input').value, 'http://health.example.test/balance');
+  const reopenedType = field('类型').querySelector('select');
+  reopenedType.value = 'select'; reopenedType.dispatchEvent(new w.Event('change'));
+  assert.equal(field('均衡策略').hidden, true);
+  await dialogButton('保存');
+  await waitFor(async () => (await api.get('/api/v1/groups')).groups.find((g) => g.id === saved.id)?.type === 'select', 'changed to select');
+  const manual = (await api.get('/api/v1/groups')).groups.find((g) => g.id === saved.id);
+  assert.equal(manual.strategy, undefined);
+  await api.del('/api/v1/groups/' + saved.id);
+});
+
 await test('subscriptions: add, preview and commit', async () => {
   await go('subscriptions');
   click(byText('button', '添加'));

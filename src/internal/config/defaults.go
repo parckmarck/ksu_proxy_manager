@@ -153,9 +153,12 @@ func (c *Config) Normalize() {
 		if g.Subscriptions == nil {
 			g.Subscriptions = []string{}
 		}
-		if g.Type == "urltest" || g.Type == "fallback" {
+		if g.Type == "urltest" || g.Type == "fallback" || g.Type == "load-balance" {
 			g.IncludeDirect = false
 			g.Selected = ""
+		}
+		if g.Type != "load-balance" {
+			g.Strategy = ""
 		}
 	}
 	if c.Subscriptions == nil {

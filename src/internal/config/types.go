@@ -132,6 +132,7 @@ type Group struct {
 	ID            string   `json:"id"`
 	Name          string   `json:"name"`
 	Type          string   `json:"type"`
+	Strategy      string   `json:"strategy,omitempty"`
 	Nodes         []string `json:"nodes"`
 	Groups        []string `json:"groups"`
 	Subscriptions []string `json:"subscriptions"`

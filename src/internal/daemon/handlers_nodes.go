@@ -481,7 +481,7 @@ func (d *Daemon) hProxies(_ http.ResponseWriter, r *http.Request) (any, error) {
 		refs := members[g.ID]
 		if px != nil {
 			if lg, ok := px[out.TagOf[config.GroupRef(g.ID)]]; ok {
-				if ref := out.RefOf[lg.Now]; ref != "" {
+				if ref := out.RefOf[lg.Now]; ref != "" && g.Type != "load-balance" {
 					v.Now = ref
 				}
 				if len(lg.All) > 0 {

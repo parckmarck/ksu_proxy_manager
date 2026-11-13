@@ -129,6 +129,9 @@ func Render(in Input) (*Output, error) {
 	}
 	cfg := config.Clone(in.Config)
 	sec := config.Clone(in.Secrets)
+	// A preview or engine switch can render for a different engine than the
+	// saved settings. Validate compatibility against the actual output target.
+	cfg.Settings.Engine = in.Engine
 	cfg.Normalize()
 	sec.Normalize()
 	if err := config.Validate(&cfg, &sec); err != nil {
@@ -549,7 +552,9 @@ func Members(cfg config.Config, sec config.Secrets, engine string) (members map[
 			refs = append(refs, refOf[m])
 		}
 		members[g.group.ID] = refs
-		selected[g.group.ID] = refOf[g.selected]
+		if g.group.Type != "load-balance" {
+			selected[g.group.ID] = refOf[g.selected]
+		}
 	}
 	return members, selected
 }

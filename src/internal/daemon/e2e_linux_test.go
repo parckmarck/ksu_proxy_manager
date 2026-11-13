@@ -641,7 +641,9 @@ func TestE2EHangRestart(t *testing.T) {
 	deadline := time.Now().Add(60 * time.Second)
 	for {
 		cur := e.status()
-		if cur.State == engine.StateRunning && cur.PID != st.PID {
+		// Reaping clears the PID before the asynchronous exit event advances
+		// state. PID 0 is this transition, not the replacement core.
+		if cur.State == engine.StateRunning && cur.PID > 0 && cur.PID != st.PID {
 			if !strings.Contains(cur.LastExit, "控制接口无响应") || cur.Restarts != 1 || !cur.CaptureActive {
 				t.Fatalf("after hang restart: %+v", cur)
 			}
