@@ -2,8 +2,8 @@
 package buildinfo
 
 var (
-	Version     = "2.1.2"
-	VersionCode = "20102"
+	Version     = "2.1.3"
+	VersionCode = "20103"
 	ID          = "dev"
 )
 

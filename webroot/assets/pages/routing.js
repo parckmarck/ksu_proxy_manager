@@ -3,7 +3,7 @@ import { h, clear, card, btn, toolBtn, setDisabled, loading, chip, toast, modal,
 
 export const RULE_TYPES = [
   ['domain_suffix', '域名后缀'], ['domain', '完整域名'], ['domain_keyword', '域名关键字'], ['domain_regex', '域名正则'],
-  ['ip_cidr', 'IP 段'], ['geosite', '域名规则集 (geosite)'], ['geoip', 'IP 规则集 (geoip)'], ['package', '应用包名'],
+  ['ip_cidr', '目标 IP 段'], ['source_ip_cidr', '来源 IP / 网段'], ['geosite', '域名规则集 (geosite)'], ['geoip', 'IP 规则集 (geoip)'], ['package', '应用包名'],
   ['port', '目标端口'], ['network', '网络 (tcp/udp)'],
 ];
 const typeName = (t) => (RULE_TYPES.find(([v]) => v === t) || [t, t])[1];
@@ -33,6 +33,12 @@ async function editRule(groups, rule) {
     { key: 'note', label: '备注' },
     { key: 'enabled', label: '启用', type: 'switch' },
   ], initial);
+  const sourceHint = h('p', { class: 'hint' }, '来源支持 IPv4、IPv6 地址或网段，如 192.168.43.20、fd00:1234::/64，每行一个，匹配任一即可。仅对已接管的流量生效；热点设备需开启热点共享并保留原始来源 IP，设备 IP 变化后需更新。规则模式按列表顺序匹配，应用专用出口、DNS 劫持及内置私网直连优先。保存后重启核心生效。');
+  const typeInput = f.el.querySelector('select');
+  const refreshSourceHint = () => { sourceHint.hidden = typeInput.value !== 'source_ip_cidr'; };
+  typeInput.addEventListener('change', refreshSourceHint);
+  refreshSourceHint();
+  f.el.append(sourceHint);
   const v = await modal(rule ? '编辑规则' : '添加规则', f.el, [
     { label: '取消', value: null },
     { label: '确定', value: 'ok', cls: 'primary', onclick: () => {

@@ -245,6 +245,13 @@ func singBoxRule(p *plan, r planRule) jmap {
 	switch r.typ {
 	case "domain", "domain_keyword", "domain_regex", "ip_cidr":
 		m = jmap{{r.typ, r.values}}
+	case "source_ip_cidr":
+		vals := make([]string, len(r.values))
+		for i, v := range r.values {
+			pfx, _ := config.ParseCIDROrIP(v)
+			vals[i] = pfx.String()
+		}
+		m = jmap{{"source_ip_cidr", vals}}
 	case "domain_suffix":
 		vals := make([]string, len(r.values))
 		for i, v := range r.values {

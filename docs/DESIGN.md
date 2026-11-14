@@ -224,6 +224,7 @@ Mihomo 的 VMess+XHTTP、Trojan+HTTP/2 等不支持的组合在渲染前明确�
 - 规则顺序：DNS 劫持 → 拒绝发往 TUN 自身网段（sing-box 为 IPv4/IPv6，Mihomo 为 IPv6；Mihomo 的 IPv4 网段与 fake-ip 池相邻，由核心自行处理）→ 私有地址直连 → 用户规则 → 预设规则（广告拦截、QUIC 拦截、大陆直连）→ 兜底。规则目标限于代理组、DIRECT、REJECT。已知差异：Mihomo 的原生 `global` 模式不再评估规则，私网流量也会进入 GLOBAL 组（需要局域网直连时应开启“绕过局域网”，由路由层实现）；sing-box 的私网直连规则位于 `clash_mode` 规则之前，Global 模式下仍直连私网。
 - Mihomo 的 TUN IPv4 地址由 fake-ip-range 推导（198.18.0.1/30，`inet4-address` 会被忽略，已实测）；sing-box 使用 172.19.0.1/30。
 - 规则集：只引用本地文件（Mihomo `type: file` + mrs；sing-box `type: local` + srs）。
+- 来源 IP：schema 3 的 `Rule.Type=source_ip_cidr` 接受 IPv4/IPv6 单地址或 CIDR，拒绝带 `%接口` 的 IPv6 地址。渲染时补全单地址掩码并归一化网段，Mihomo 使用 `SRC-IP-CIDR`（含 IPv6），sing-box 使用 `source_ip_cidr` 数组，同条规则多值为 OR。沿用自定义规则顺序及启用状态，应用专用出口优先；Direct/Global 模式、DNS 劫持、内置私网直连的既有行为不变。只影响已进入核心且保留来源 IP 的连接，不增加热点接管或修改监听地址；热点客户端地址变化需更新规则。
 - DNS：fake-ip 模式下大陆域名走直连 DNS，其余返回 fake-ip；真实 IP 模式下其余走经代理 DoH。节点域名用直连 DNS 解析。DNS 随运行模式切换：sing-box 用 `clash_mode` DNS 规则（直连模式全部直连解析，全局模式全部经代理解析）；Mihomo 由 `respect-rules` 保证 DNS 连接本身随模式走代理或直连，但服务器选择（`nameserver`/`nameserver-policy`）不随模式改变：直连模式下非大陆域名仍向“代理 DNS”服务器直连查询，在该类服务器被封锁的网络中可能解析失败（已知限制）。sing-box 只使用第一个 IP 形式的直连 DNS 与第一个代理 DNS，其余在启动告警中列出。
 
 ## 10. 订阅

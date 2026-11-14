@@ -272,6 +272,9 @@ func mihomoRules(p *plan, r planRule) []string {
 				kind = "IP-CIDR6"
 			}
 			out = append(out, kind+","+pfx.String()+","+target+",no-resolve")
+		case "source_ip_cidr":
+			pfx, _ := config.ParseCIDROrIP(v)
+			out = append(out, "SRC-IP-CIDR,"+pfx.String()+","+target)
 		case "geosite":
 			out = append(out, "RULE-SET,geosite-"+v+","+target)
 		case "geoip":

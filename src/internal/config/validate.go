@@ -48,7 +48,7 @@ var (
 	fingerprints   = map[string]bool{"": true, "chrome": true, "firefox": true, "safari": true, "ios": true, "android": true, "edge": true, "360": true, "qq": true, "random": true, "randomized": true}
 	logLevels      = map[string]bool{"debug": true, "info": true, "warn": true, "error": true, "silent": true}
 	tunStacks      = map[string]bool{"": true, "system": true, "gvisor": true, "mixed": true, "mips": true}
-	ruleTypes      = map[string]bool{"domain": true, "domain_suffix": true, "domain_keyword": true, "domain_regex": true, "ip_cidr": true, "geosite": true, "geoip": true, "package": true, "port": true, "network": true}
+	ruleTypes      = map[string]bool{"domain": true, "domain_suffix": true, "domain_keyword": true, "domain_regex": true, "ip_cidr": true, "source_ip_cidr": true, "geosite": true, "geoip": true, "package": true, "port": true, "network": true}
 )
 
 func ValidID(s string) bool          { return idRE.MatchString(s) }
@@ -643,7 +643,10 @@ func ValidateRuleValue(typ, v string) error {
 		if _, err := regexp.Compile(v); err != nil {
 			return fmt.Errorf("正则无效")
 		}
-	case "ip_cidr":
+	case "ip_cidr", "source_ip_cidr":
+		if typ == "source_ip_cidr" && strings.Contains(v, "%") {
+			return fmt.Errorf("来源 IP 不能包含接口区域，请填写 IP 地址或 CIDR")
+		}
 		if _, err := netip.ParsePrefix(v); err != nil {
 			if _, err := netip.ParseAddr(v); err != nil {
 				return fmt.Errorf("CIDR 格式无效")

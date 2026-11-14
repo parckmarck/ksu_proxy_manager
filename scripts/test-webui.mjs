@@ -500,6 +500,72 @@ await test('routing: add a rule and save DNS', async () => {
   assert.deepEqual(r.routing.rules[0].values, ['example.org', '.example.net']);
 });
 
+await test('routing: source IP rules survive edits and can be disabled and deleted', async () => {
+  await go('routing');
+  const before = await api.get('/api/v1/routing');
+  const field = (label) => inDialog('.field').find((f) => f.querySelector('.label').textContent === label);
+  const sourceRow = () => $$('.rule-row').find((row) => row.textContent.includes('192.168.43.20'));
+  let addedID;
+  try {
+    click(byText('button', '添加'));
+    await waitFor(dialog, 'source IP rule dialog');
+    const type = field('类型').querySelector('select');
+    const option = [...type.options].find((o) => o.value === 'source_ip_cidr');
+    assert.ok(option && /来源/.test(option.textContent), 'source IP rule type is offered');
+    const sourceHint = [...dialog().querySelectorAll('.hint')].find((el) => el.textContent.includes('来源支持'));
+    assert.ok(sourceHint, 'source IP hint exists');
+    assert.equal(sourceHint.hidden, true, 'source IP hint is hidden for the default domain rule');
+    setInput(type, 'source_ip_cidr');
+    assert.equal(sourceHint.hidden, false, 'source IP hint is visible for source rules');
+    assert.match(sourceHint.textContent, /IPv4/);
+    assert.match(sourceHint.textContent, /IPv6/);
+    assert.match(sourceHint.textContent, /热点/);
+    setInput(type, 'domain_suffix');
+    assert.equal(sourceHint.hidden, true, 'source IP hint hides when changing to a domain rule');
+    setInput(type, 'source_ip_cidr');
+    assert.equal(sourceHint.hidden, false);
+    setInput(field('匹配值（每行一个）').querySelector('textarea'), '192.168.43.20\nfd00:1234::/64');
+    setInput(field('出口').querySelector('select'), 'REJECT');
+    await dialogButton('确定');
+    await waitFor(sourceRow, 'source IP rule listed');
+    const saved = (await api.get('/api/v1/routing')).routing.rules.find((r) => r.type === 'source_ip_cidr');
+    assert.ok(saved, 'source IP rule persisted through the real daemon');
+    addedID = saved.id;
+    assert.deepEqual(saved.values, ['192.168.43.20', 'fd00:1234::/64']);
+    assert.equal(saved.target, 'REJECT');
+    assert.equal(saved.enabled, true);
+
+    click([...sourceRow().querySelectorAll('button')].find((b) => b.textContent === '编辑'));
+    await waitFor(dialog, 'source IP rule reopened');
+    assert.equal(field('类型').querySelector('select').value, 'source_ip_cidr');
+    assert.equal(field('匹配值（每行一个）').querySelector('textarea').value, '192.168.43.20\nfd00:1234::/64');
+    assert.equal(field('出口').querySelector('select').value, 'REJECT');
+    field('启用').querySelector('input').click();
+    await dialogButton('确定');
+    await waitFor(async () => (await api.get('/api/v1/routing')).routing.rules.find((r) => r.id === addedID)?.enabled === false, 'source IP rule disabled');
+    await waitFor(() => sourceRow()?.textContent.includes('已停用'), 'disabled source IP rule listed');
+    const disabled = (await api.get('/api/v1/routing')).routing.rules.find((r) => r.id === addedID);
+    assert.equal(disabled.type, 'source_ip_cidr');
+    assert.deepEqual(disabled.values, ['192.168.43.20', 'fd00:1234::/64']);
+    assert.equal(disabled.target, 'REJECT');
+
+    click([...sourceRow().querySelectorAll('button')].find((b) => b.textContent === '删除'));
+    await waitFor(dialog, 'delete source IP rule confirmation');
+    await dialogButton('删除');
+    await waitFor(async () => !(await api.get('/api/v1/routing')).routing.rules.some((r) => r.id === addedID), 'source IP rule deleted');
+    await waitFor(() => !sourceRow(), 'source IP rule removed from list');
+    assert.deepEqual((await api.get('/api/v1/routing')).routing.rules, before.routing.rules);
+  } finally {
+    if (addedID) {
+      const current = await api.get('/api/v1/routing');
+      if (current.routing.rules.some((r) => r.id === addedID)) {
+        current.routing.rules = current.routing.rules.filter((r) => r.id !== addedID);
+        await api.put(api.q('/api/v1/routing', { rev: current.revision }), current.routing);
+      }
+    }
+  }
+});
+
 await test('routing and DNS use their own snapshot revisions', async () => {
   const { default: mountRouting } = await import(pathToFileURL(path.join(moduleDir, 'webroot/assets/pages/routing.js')).href + '?v=__V__');
   const routing = await api.get('/api/v1/routing');
