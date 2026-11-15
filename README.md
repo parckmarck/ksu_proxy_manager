@@ -1,4 +1,4 @@
-# KSU Proxy Manager 2.1.3
+# KSU Proxy Manager 2.1.4
 
 KernelSU / Magisk / APatch 代理管理模块。使用 Mihomo 或 sing-box 作为代理核心，通过 TUN 透明代理设备流量，提供按应用分流、订阅管理、分流规则与 DNS 设置，全部在模块自带的 WebUI 中完成。
 
@@ -27,7 +27,7 @@ KernelSU / Magisk / APatch 代理管理模块。使用 Mihomo 或 sing-box 作�
 
 ## 安装与升级
 
-1. 在管理器中刷入 `ksu_proxy_manager-v2.1.3.zip`，重启。
+1. 在管理器中刷入 `ksu_proxy_manager-v2.1.4.zip`，重启。
 2. 打开模块 WebUI：
    1. 「核心」页：下载 Mihomo 或 sing-box（或导入本地文件），在“使用的核心”中选择。
    2. 「订阅」页添加订阅，或在「节点」页导入分享链接 / 手动添加。
