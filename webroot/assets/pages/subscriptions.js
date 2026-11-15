@@ -55,7 +55,7 @@ function usageLine(u) {
   const pct = u.total ? Math.min(100, Math.round((used / u.total) * 100)) : 0;
   return h('div', { class: 'subscription-usage' },
     h('div', { class: 'small muted' }, parts.join(' · ')),
-    u.total ? h('div', { class: 'progress', role: 'progressbar', 'aria-label': '订阅已用流量', 'aria-valuenow': pct, 'aria-valuemin': 0, 'aria-valuemax': 100, style: { marginTop: '6px' } }, h('i', { style: { width: pct + '%' } })) : null);
+    u.total ? h('div', { class: 'progress', role: 'progressbar', 'aria-label': '订阅已用流量', 'aria-valuenow': pct, 'aria-valuemin': 0, 'aria-valuemax': 100 }, h('i', { style: { width: pct + '%' } })) : null);
 }
 
 function nameList(title, names) {
@@ -79,9 +79,11 @@ async function refresh(sub, onDone) {
   }
   pd.close();
   const d = preview.diff;
-  const body = h('div', null,
+  const body = h('div', { class: 'subscription-preview' },
     h('p', null, `识别格式：${preview.format}，共 ${preview.count} 个节点。`),
-    h('p', null, `新增 ${d.added.length}，删除 ${d.removed.length}，变更 ${d.changed.length}，未变 ${d.unchanged}。`),
+    h('div', { class: 'subscription-diff' },
+      h('span', null, `新增 ${d.added.length}`), h('span', null, `删除 ${d.removed.length}`),
+      h('span', null, `变更 ${d.changed.length}`), h('span', null, `未变 ${d.unchanged}`)),
     nameList('新增', d.added), nameList('删除', d.removed), nameList('变更', d.changed),
     preview.issues.length ? nameList('未能识别的条目', preview.issues.map((i) => (i.name ? i.name + '：' : '') + i.message)) : null,
     usageLine(preview.usage));
@@ -102,7 +104,7 @@ async function refresh(sub, onDone) {
 }
 
 export default function mount(view, ctx) {
-  const box = h('div', null, loading());
+  const box = h('div', { class: 'subscription-list' }, loading());
   let alive = true;
   view.append(card('订阅', [
     btn('全部更新', async () => {
@@ -131,11 +133,13 @@ export default function mount(view, ctx) {
     }
     const ul = h('ul', { class: 'list' });
     for (const s of r.subscriptions) {
-      ul.append(h('li', { class: 'subscription-row', style: { alignItems: 'flex-start' } },
-        h('div', { class: 'grow' },
-          h('div', { class: 'title' }, s.name, ' ', s.viaProxy ? chip('经代理') : null, ' ', s.autoUpdateHours ? chip(`每 ${s.autoUpdateHours} 小时`) : null),
+      ul.append(h('li', { class: 'subscription-row' },
+        h('div', { class: 'grow subscription-body' },
+          h('div', { class: 'title subscription-heading' }, h('span', { class: 'subscription-name' }, s.name),
+            s.lastError ? chip('更新失败', 'err') : s.updatedAt ? chip('已更新', 'ok') : chip('尚未更新'),
+            s.viaProxy ? chip('经代理') : null, s.autoUpdateHours ? chip(`每 ${s.autoUpdateHours} 小时`) : null),
           h('div', { class: 'sub' }, `${s.urlHost || '—'} · ${s.nodeCount} 个节点 · 更新于 ${fmtAgo(s.updatedAt)}`),
-          s.lastError ? h('div', { class: 'small', style: { color: 'var(--err)' } }, '上次失败：' + s.lastError) : null,
+          s.lastError ? h('div', { class: 'subscription-error' }, '上次失败：' + s.lastError) : null,
           usageLine(s.usage)),
         h('div', { class: 'row-actions' },
           toolBtn('更新', 'refreshCw', () => refresh(s, load)),

@@ -25,11 +25,11 @@ export default function mount(view, ctx) {
   let info = null;
   let settings = null;
   let revision = 0;
-  const activeBox = h('div', null, loading());
-  const installedBox = h('div', null, loading());
-  const downloadBox = h('div', null, loading());
-  const importBox = h('div', null, loading());
-  const rulesetBox = h('div', null, loading());
+  const activeBox = h('div', { class: 'core-active' }, loading());
+  const installedBox = h('div', { class: 'core-installed' }, loading());
+  const downloadBox = h('div', { class: 'core-download' }, loading());
+  const importBox = h('div', { class: 'core-import' }, loading());
+  const rulesetBox = h('div', { class: 'core-rulesets' }, loading());
   view.append(
     card('使用的核心', null, activeBox),
     card('已安装', null, installedBox),
@@ -74,12 +74,12 @@ export default function mount(view, ctx) {
       const [vtext, vcls] = VERIFY[it.verification] || [it.verification, ''];
       const running = info.running.engine === it.engine && info.running.version === it.version && it.abi === info.abi;
       const foreign = it.abi !== info.abi;
-      ul.append(h('li', null,
+      ul.append(h('li', { class: 'core-file-row' },
         icon('cpu'),
         h('div', { class: 'grow' },
           h('div', { class: 'title' }, `${it.engine} ${it.version} `, chip(vtext, vcls), running ? [' ', chip('运行中', 'ok')] : null,
             foreign ? [' ', chip(`架构不符（${it.abi}），不可用`, 'err')] : null),
-          h('div', { class: 'sub ellipsis' }, `${it.releaseAsset || ''} · 安装于 ${fmtTime(it.installedAt)} · SHA-256 ${String(it.sha256).slice(0, 16)}…`)),
+          h('div', { class: 'sub core-file-details' }, `${it.releaseAsset || ''} · 安装于 ${fmtTime(it.installedAt)} · SHA-256 ${String(it.sha256).slice(0, 16)}…`)),
         toolBtn('删除', 'trash2', async () => {
           if (!(await confirmDialog(`删除 ${it.engine} ${it.version}？`, '删除', true))) return;
           try {
@@ -99,7 +99,7 @@ export default function mount(view, ctx) {
     const engineSel = h('select', { 'aria-label': '下载核心类型' }, ENGINES.map(([v, l]) => h('option', { value: v }, l)));
     engineSel.value = settings.engine;
     const pre = h('input', { type: 'checkbox' });
-    const list = h('div');
+    const list = h('div', { class: 'core-release-list' });
     const fetchBtn = btn('获取版本列表', async () => {
       clear(list).append(h('p', { class: 'muted small' }, '正在查询 GitHub…'));
       const r = await get(q('/api/v1/cores/releases', { engine: engineSel.value, pre: pre.checked ? 1 : '' }));
@@ -110,7 +110,7 @@ export default function mount(view, ctx) {
       }
       const ul = h('ul', { class: 'list' });
       for (const rel of r.releases.slice(0, 15)) {
-        ul.append(h('li', null,
+        ul.append(h('li', { class: 'core-release-row' },
           h('div', { class: 'grow' }, h('div', { class: 'title' }, rel.tag, rel.prerelease ? [' ', chip('预发布', 'warn')] : null),
             h('div', { class: 'sub' }, `${fmtTime(rel.publishedAt)} · ${fmtBytes(rel.asset.size)}`)),
           btn('下载安装', async () => {
@@ -122,7 +122,7 @@ export default function mount(view, ctx) {
       list.append(ul);
     }, 'primary');
     downloadBox.append(h('div', { class: 'toolbar' }, engineSel, h('label', { class: 'row small' }, pre, '包含预发布'), fetchBtn), list,
-      h('p', { class: 'small muted' }, '只从官方 GitHub 发布页下载，并用 GitHub 提供的 SHA-256 摘要校验；设置中可配置下载镜像（同样校验摘要）。'));
+      h('p', { class: 'small muted core-note' }, '只从官方 GitHub 发布页下载，并用 GitHub 提供的 SHA-256 摘要校验；设置中可配置下载镜像（同样校验摘要）。'));
   }
 
   async function loadFiles() {
@@ -140,16 +140,16 @@ export default function mount(view, ctx) {
     if (r.files.length) {
       const ul = h('ul', { class: 'list' });
       for (const f of r.files) {
-        ul.append(h('li', null, h('div', { class: 'grow' }, h('div', { class: 'title ellipsis' }, f.name), h('div', { class: 'sub' }, `${fmtBytes(f.size)} · ${fmtTime(f.modTime)}`)),
+        ul.append(h('li', { class: 'core-file-row' }, h('div', { class: 'grow' }, h('div', { class: 'title' }, f.name), h('div', { class: 'sub' }, `${fmtBytes(f.size)} · ${fmtTime(f.modTime)}`)),
           btn('导入', () => doImport(f.path), 'small')));
       }
       importBox.append(ul);
     } else {
       importBox.append(h('p', { class: 'small muted' }, '下载目录中没有找到核心文件（文件名需包含 mihomo 或 sing-box）。'));
     }
-    importBox.append(h('div', { class: 'row', style: { marginTop: '8px' } }, h('div', { class: 'grow' }, pathInput),
+    importBox.append(h('div', { class: 'row core-import-path' }, h('div', { class: 'grow' }, pathInput),
       btn('按路径导入', () => (pathInput.value.trim() ? doImport(pathInput.value.trim()) : null), 'small')),
-    h('p', { class: 'small muted' }, '支持 .gz / .tar.gz / .zip 或可执行文件，会检查架构并运行版本命令识别类型；本地文件来源无法校验，请只导入可信文件。'));
+    h('p', { class: 'small muted core-note' }, '支持 .gz / .tar.gz / .zip 或可执行文件，会检查架构并运行版本命令识别类型；本地文件来源无法校验，请只导入可信文件。'));
   }
 
   async function renderRulesets() {
@@ -161,17 +161,17 @@ export default function mount(view, ctx) {
     for (const id of r.needed) {
       const ok = have.has(id.kind + ':' + id.name);
       const ent = r.installed.find((x) => x.engine === r.engine && x.kind === id.kind && x.name === id.name);
-      ul.append(h('li', null, h('div', { class: 'grow' }, h('div', { class: 'title' }, `${id.kind}:${id.name}`),
+      ul.append(h('li', { class: 'core-ruleset-row' }, h('div', { class: 'grow' }, h('div', { class: 'title' }, `${id.kind}:${id.name}`),
         h('div', { class: 'sub' }, ent ? `${fmtBytes(ent.size)} · 更新于 ${fmtTime(ent.updatedAt)}` : '未下载')), chip(ok ? '就绪' : '缺失', ok ? 'ok' : 'warn')));
     }
     const auto = h('input', { type: 'checkbox', checked: !!r.autoUpdate, onchange: () => saveSettings({ rulesetAutoUpdate: auto.checked }) });
     rulesetBox.append(
       r.needed.length ? ul : empty('当前配置不需要规则集'),
-      h('div', { class: 'row', style: { marginTop: '8px' } },
+      h('div', { class: 'row core-ruleset-actions' },
         btn('下载缺失', async () => { await runTask('下载规则集', () => post('/api/v1/rulesets/update', { missingOnly: true })); toast('完成', 'ok'); await renderRulesets(); }, 'small'),
         btn('全部更新', async () => { await runTask('更新规则集', () => post('/api/v1/rulesets/update', {})); toast('完成', 'ok'); await renderRulesets(); }, 'small primary'),
         h('label', { class: 'row small' }, auto, '每周自动更新')),
-      h('p', { class: 'small muted' }, `规则集来自 MetaCubeX/meta-rules-dat（${r.engine === 'sing-box' ? '.srs' : '.mrs'} 格式）。缺失时相关规则会被暂时跳过，下载完成后自动生效。`));
+      h('p', { class: 'small muted core-note' }, `规则集来自 MetaCubeX/meta-rules-dat（${r.engine === 'sing-box' ? '.srs' : '.mrs'} 格式）。缺失时相关规则会被暂时跳过，下载完成后自动生效。`));
   }
 
   async function load() {

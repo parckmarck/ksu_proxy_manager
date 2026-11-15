@@ -2,7 +2,7 @@ import { get, del } from '../api.js?v=__V__';
 import { h, clear, card, btn, toolBtn, searchField, loading, toast, confirmDialog, errorText, empty, fmtBytes, poller } from '../ui.js?v=__V__';
 
 export default function mount(view) {
-  const box = h('div', null, loading());
+  const box = h('div', { class: 'connections-box' }, loading());
   const search = h('input', { type: 'search', placeholder: '按域名、应用、规则或出口筛选', oninput: () => render() });
   let last = null;
   let alive = true;
@@ -33,16 +33,17 @@ export default function mount(view) {
     const tbody = h('tbody');
     for (const c of list.slice(0, 300)) {
       tbody.append(h('tr', null,
-        h('td', { class: 'break' }, h('div', null, c.host || c.dest), h('div', { class: 'muted' }, `${c.network} ${c.host ? c.dest : ''}`),
+        h('td', { class: 'break connection-target' }, h('div', { class: 'connection-host' }, c.host || c.dest), h('div', { class: 'muted connection-address' }, `${c.network} ${c.host ? c.dest : ''}`),
           c.process ? h('div', { class: 'muted' }, `应用 ${c.process}`) : null),
-        h('td', { class: 'break' }, h('div', null, (c.chains || []).slice().reverse().join(' → ')), h('div', { class: 'muted' }, c.rule)),
-        h('td', null, h('span', null, `↓ ${fmtBytes(c.download)}`), h('br'), h('span', null, `↑ ${fmtBytes(c.upload)}`)),
+        h('td', { class: 'break connection-routing' }, h('div', { class: 'connection-chain' }, h('span', { class: 'connection-label' }, '出口'), h('span', null, (c.chains || []).slice().reverse().join(' → '))),
+          h('div', { class: 'muted connection-rule' }, h('span', { class: 'connection-label' }, '规则'), h('span', null, c.rule))),
+        h('td', { class: 'connection-traffic' }, h('span', null, h('span', { class: 'connection-label' }, '下载 '), `↓ ${fmtBytes(c.download)}`), h('br'), h('span', null, h('span', { class: 'connection-label' }, '上传 '), `↑ ${fmtBytes(c.upload)}`)),
         h('td', null, toolBtn('断开', 'unplug', async () => {
           await del('/api/v1/connections/' + encodeURIComponent(c.id));
           await load();
         }, 'ghost'))));
     }
-    box.append(h('div', { class: 'scroll-x' }, h('table', { class: 'table' },
+    box.append(h('div', { class: 'scroll-x' }, h('table', { class: 'table connection-table' },
       h('thead', null, h('tr', null, h('th', null, '目标'), h('th', null, '出口 / 规则'), h('th', null, '流量'), h('th', { 'aria-label': '操作' }))), tbody)));
   }
 

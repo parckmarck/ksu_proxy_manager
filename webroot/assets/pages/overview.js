@@ -14,12 +14,12 @@ export function drawChart(canvas, history = []) {
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, width, height);
   const style = getComputedStyle(document.documentElement);
-  const color = (key, fallback) => style.getPropertyValue(key).trim() || fallback;
+  const color = (key) => style.getPropertyValue(key).trim();
   const points = history.length > 1 ? history : [history[0] || { up: 0, down: 0 }, history[0] || { up: 0, down: 0 }];
   const max = Math.max(1024, ...points.map((p) => Math.max(p.up || 0, p.down || 0))) * 1.15;
   const right = Math.max(80, width - 68);
   const top = 12, bottom = height - 8;
-  g.font = '10px system-ui, sans-serif';
+  g.font = `${style.getPropertyValue('--text-xs').trim()} ${style.fontFamily}`;
   g.textAlign = 'right';
   g.lineWidth = 1;
   for (let i = 0; i < 4; i++) {
@@ -27,12 +27,12 @@ export function drawChart(canvas, history = []) {
     g.beginPath();
     g.moveTo(0, y);
     g.lineTo(right, y);
-    g.strokeStyle = color('--line', '#e3e8e8');
+    g.strokeStyle = color('--line');
     g.stroke();
-    g.fillStyle = color('--muted', '#697375');
+    g.fillStyle = color('--muted');
     g.fillText(fmtRate(max * (1 - i / 3)), width - 1, y + 3);
   }
-  for (const [key, stroke] of [['down', color('--blue', '#3279c7')], ['up', color('--accent', '#087f72')]]) {
+  for (const [key, stroke] of [['down', color('--blue')], ['up', color('--accent')]]) {
     const path = () => {
       g.beginPath();
       points.forEach((p, i) => {
@@ -112,7 +112,8 @@ export default function mount(view, ctx) {
   const chartStart = h('span');
   const chartEnd = h('span');
   const notes = h('div', { class: 'overview-notes' });
-  view.append(
+  view.append(h('div', { class: 'overview-layout' },
+    h('div', { class: 'overview-primary' },
     card('运行状态', stateChip,
       h('div', { class: 'runtime-heading' },
         h('div', { class: 'core-identity' }, h('div', { class: 'core-symbol' }, icon('cpu')),
@@ -120,13 +121,13 @@ export default function mount(view, ctx) {
         h('div', { class: 'row' }, start, restart, stop, disabled)),
       h('div', { class: 'runtime-metrics' }, duration.el, capture.el, process.el, restarts.el),
       h('details', { class: 'overview-details' }, h('summary', null, '服务详情'), detailBody)),
+    notes,
     h('section', { class: 'section mode-band', 'aria-label': '路由模式' }, h('h2', null, '路由模式'), mode.el),
-    resources,
+    resources),
+    h('div', { class: 'overview-traffic' },
     card('实时流量', trafficState,
       h('div', { class: 'traffic-stats' }, down.el, up.el, downTotal.el, upTotal.el),
-      h('div', { class: 'chart-wrap' }, canvas, h('div', { class: 'chart-caption' }, chartStart, chartEnd))),
-    notes,
-  );
+      h('div', { class: 'chart-wrap' }, canvas, h('div', { class: 'chart-caption' }, chartStart, chartEnd))))));
 
   function render(s) {
     if (!alive) return;

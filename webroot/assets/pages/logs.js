@@ -2,6 +2,7 @@ import { get, del, q } from '../api.js?v=__V__';
 import { h, clear, card, toolBtn, segmented, toast, confirmDialog, errorText, poller } from '../ui.js?v=__V__';
 
 const LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
+const LEVEL_LABELS = { debug: '调试', info: '信息', warn: '警告', error: '错误' };
 
 export default function mount(view) {
   let source = 'daemon';
@@ -12,7 +13,7 @@ export default function mount(view) {
   let generation = 0;
   const pending = new Set();
   const box = h('div', { class: 'logbox', tabindex: 0, 'aria-label': '日志内容' });
-  const status = h('div', { class: 'small muted', role: 'status' }, '正在读取…');
+  const status = h('div', { class: 'small muted log-status', role: 'status' }, '正在读取…');
   const seg = segmented([['daemon', '管理服务'], ['core', '核心']], source, async (value) => {
     source = value;
     await reset();
@@ -45,7 +46,8 @@ export default function mount(view) {
         if ((LEVELS[line.level] ?? 1) < LEVELS[minLevel]) continue;
         const time = new Date(line.time);
         const timestamp = isNaN(time) ? '' : time.toTimeString().slice(0, 8);
-        frag.append(h('div', { class: 'l-' + line.level }, h('span', { class: 'log-time' }, timestamp), line.text));
+        frag.append(h('div', { class: 'log-line l-' + line.level }, h('span', { class: 'log-time' }, timestamp),
+          h('span', { class: 'log-level' }, LEVEL_LABELS[line.level] || line.level), h('span', { class: 'log-body' }, line.text)));
       }
       box.querySelector('.log-empty')?.remove();
       box.append(frag);
@@ -62,8 +64,8 @@ export default function mount(view) {
     }
   }
 
-  view.append(card('运行日志', seg.el,
-    h('div', { class: 'toolbar' }, levelSel, h('label', { class: 'row small' }, followCb, '自动滚动'),
+  const section = card('运行日志', seg.el,
+    h('div', { class: 'toolbar logs-toolbar' }, levelSel, h('label', { class: 'row small' }, followCb, '自动滚动'),
       h('span', { class: 'grow' }),
       toolBtn('清空', 'trash2', async () => {
         if (!(await confirmDialog('清空当前日志？', '清空', true))) return;
@@ -71,7 +73,9 @@ export default function mount(view) {
         toast('已清空', 'ok');
         await reset();
       }, 'ghost')),
-    box, status));
+    box, status);
+  section.classList.add('logs-section');
+  view.append(section);
   const poll = poller(load, 1500);
   return () => { alive = false; generation++; poll.stop(); };
 }

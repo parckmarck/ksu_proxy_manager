@@ -33,7 +33,7 @@ async function editRule(groups, rule) {
     { key: 'note', label: '备注' },
     { key: 'enabled', label: '启用', type: 'switch' },
   ], initial);
-  const sourceHint = h('p', { class: 'hint' }, '来源支持 IPv4、IPv6 地址或网段，如 192.168.43.20、fd00:1234::/64，每行一个，匹配任一即可。仅对已接管的流量生效；热点设备需开启热点共享并保留原始来源 IP，设备 IP 变化后需更新。规则模式按列表顺序匹配，应用专用出口、DNS 劫持及内置私网直连优先。保存后重启核心生效。');
+  const sourceHint = h('p', { class: 'hint rule-source-hint' }, '来源支持 IPv4、IPv6 地址或网段，如 192.168.43.20、fd00:1234::/64，每行一个，匹配任一即可。仅对已接管的流量生效；热点设备需开启热点共享并保留原始来源 IP，设备 IP 变化后需更新。规则模式按列表顺序匹配，应用专用出口、DNS 劫持及内置私网直连优先。保存后重启核心生效。');
   const typeInput = f.el.querySelector('select');
   const refreshSourceHint = () => { sourceHint.hidden = typeInput.value !== 'source_ip_cidr'; };
   typeInput.addEventListener('change', refreshSourceHint);
@@ -56,9 +56,9 @@ export default function mount(view) {
   let data = null;
   let groups = [];
   let alive = true;
-  const settingsBox = h('div', null, loading());
-  const rulesBox = h('div', null, loading());
-  const dnsBox = h('div', null, loading());
+  const settingsBox = h('div', { class: 'routing-settings' }, loading());
+  const rulesBox = h('div', { class: 'routing-rules' }, loading());
+  const dnsBox = h('div', { class: 'routing-dns' }, loading());
   view.append(
     card('分流设置', null, settingsBox),
     card('自定义规则', btn('添加', async () => {
@@ -110,12 +110,13 @@ export default function mount(view) {
       rulesBox.append(empty('没有自定义规则'));
       return;
     }
-    const ul = h('ul', { class: 'list' });
+    const ul = h('ul', { class: 'list rule-list' });
     rules.forEach((r, i) => {
       ul.append(h('li', { class: 'rule-row' },
-        h('div', { class: 'grow' },
+        h('div', { class: 'grow rule-main' },
           h('div', { class: 'title' }, typeName(r.type), ' → ', targetName(groups, r.target), r.enabled ? null : [' ', chip('已停用', 'warn')]),
-          h('div', { class: 'sub ellipsis' }, r.values.join(', ') + (r.note ? ` · ${r.note}` : ''))),
+          h('div', { class: 'sub rule-values' }, r.values.join(', ')),
+          r.note ? h('div', { class: 'sub rule-note' }, r.note) : null),
         h('div', { class: 'row-actions' },
         setDisabled(toolBtn('上移', 'arrowUp', () => move(i, -1)), i === 0),
         setDisabled(toolBtn('下移', 'arrowDown', () => move(i, 1)), i === rules.length - 1),

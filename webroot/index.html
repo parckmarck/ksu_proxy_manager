@@ -8,31 +8,37 @@
 <meta name="theme-color" content="#ffffff">
 <title>KSU Proxy Manager</title>
 <script src="assets/theme.js?v=__V__"></script>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=__V__">
 <link rel="stylesheet" href="assets/app.css?v=__V__">
 <script type="module" src="assets/main.js?v=__V__"></script>
 </head>
 <body>
 <a class="skip-link" href="#content">跳至内容</a>
 <div id="app">
-  <aside class="sidebar">
+  <aside class="sidebar" aria-label="应用导航">
     <a class="brand" href="#/overview">
       <span class="brand-mark" aria-hidden="true"></span>
       <span>KSU<span class="brand-sub">Proxy Manager</span></span>
     </a>
     <nav id="nav" aria-label="页面"></nav>
-    <div class="sidebar-footer"><span class="status-dot"></span><span id="connection-kind">KernelSU WebUI</span></div>
+    <div class="sidebar-footer"><span class="status-dot" aria-hidden="true"></span><span id="connection-kind">KernelSU WebUI</span></div>
   </aside>
   <div class="workspace">
     <header class="topbar">
-      <div class="mobile-brand"><span class="brand-mark" aria-hidden="true"></span><span>KSU Proxy Manager</span></div>
-      <div class="desktop-context">KSU Proxy Manager</div>
+      <div class="topbar-identity">
+        <div class="mobile-brand"><span class="brand-mark" aria-hidden="true"></span><span>KSU Proxy Manager</span></div>
+        <div class="desktop-context">KSU Proxy Manager</div>
+      </div>
       <div class="header-actions">
         <span id="hdr-state" class="chip status-chip" role="status">连接中…</span>
         <div id="header-tools" class="row"></div>
       </div>
     </header>
     <main id="content" tabindex="-1" aria-labelledby="page-title">
-      <div class="page-heading"><h1 id="page-title" tabindex="-1">概览</h1><span id="page-meta" class="small muted"></span></div>
+      <div class="page-heading">
+        <h1 id="page-title" tabindex="-1">概览</h1>
+        <span id="page-meta" class="small muted"></span>
+      </div>
       <div id="banner"></div>
       <div id="view"><p class="muted center">正在加载…</p></div>
     </main>

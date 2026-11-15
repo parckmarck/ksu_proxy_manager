@@ -27,11 +27,11 @@ const SETTINGS_FIELDS = [
 
 export default function mount(view, ctx) {
   let alive = true;
-  const settingsBox = h('div', null, loading());
-  const webBox = h('div', null, loading());
-  const backupBox = h('div', null, loading());
-  const systemBox = h('div', null, loading());
-  const aboutBox = h('div');
+  const settingsBox = h('div', { class: 'settings-general' }, loading());
+  const webBox = h('div', { class: 'settings-web' }, loading());
+  const backupBox = h('div', { class: 'settings-backups' }, loading());
+  const systemBox = h('div', { class: 'settings-system' }, loading());
+  const aboutBox = h('div', { class: 'settings-about' });
   view.append(
     card('常规设置', null, settingsBox),
     card('浏览器访问', null, webBox),
@@ -65,7 +65,7 @@ export default function mount(view, ctx) {
     else if (s.webAccessActive) webState = `已开启：在本机浏览器打开 ${s.webAccessUrl}`;
     else if (s.webAccess.enabled) webState = '已开启，但端口监听失败（可能被占用），请查看日志';
     clear(webBox).append(
-      h('p', null, webState),
+      h('p', { class: 'settings-web-state' }, webState),
       h('div', { class: 'row' },
         btn(s.hasWebKey ? '重新生成密钥' : '生成密钥', async () => {
           if (s.hasWebKey && !(await confirmDialog('旧密钥将立即失效，继续？'))) return;
@@ -83,11 +83,11 @@ export default function mount(view, ctx) {
       }
     } });
     clear(systemBox).append(
-      h('label', { class: 'row' }, del, h('span', null, '卸载模块时同时删除数据（配置、核心、日志）')),
+      h('label', { class: 'row settings-uninstall' }, del, h('span', null, '卸载模块时同时删除数据（配置、核心、日志）')),
       h('p', { class: 'small muted' }, `数据目录：${s.dataDir}。默认卸载时保留，以便重新安装后继续使用。`),
       h('div', { class: 'row' }, btn('查看诊断信息', async () => {
         const d = await get('/api/v1/diagnostics');
-        await modal('诊断信息', h('pre', { class: 'mono break', style: { whiteSpace: 'pre-wrap' } }, JSON.stringify(d, null, 2)));
+        await modal('诊断信息', h('pre', { class: 'mono break diagnostic-output' }, JSON.stringify(d, null, 2)));
       }, 'small')),
       h('p', { class: 'small muted' }, '网络异常时可在终端执行 proxyctl cleanup：停止服务并移除本模块的全部路由规则。'));
   }
@@ -112,18 +112,19 @@ export default function mount(view, ctx) {
       await modal('已导出', h('p', { class: 'break' }, '备份已保存到 ' + r.path));
       await loadBackups();
     }, 'small');
-    const fileList = h('ul', { class: 'list' }, files.files.map((f) => h('li', null,
-      h('div', { class: 'grow' }, h('div', { class: 'title ellipsis' }, f.name), h('div', { class: 'sub' }, `${fmtBytes(f.size)} · ${fmtTime(f.modTime)}`)),
+    const fileList = h('ul', { class: 'list' }, files.files.map((f) => h('li', { class: 'backup-row' },
+      h('div', { class: 'grow' }, h('div', { class: 'title' }, f.name), h('div', { class: 'sub' }, `${fmtBytes(f.size)} · ${fmtTime(f.modTime)}`)),
       btn('恢复', () => restore(f.name, { path: f.path }), 'small'))));
     const backupLabel = (x) => x.kind === 'legacy' ? '旧版配置' : x.kind === 'rejected' ? '异常配置原件' : `修订 ${x.revision}`;
-    const autoList = h('ul', { class: 'list' }, b.backups.slice().reverse().map((x) => h('li', null,
+    const autoList = h('ul', { class: 'list' }, b.backups.slice().reverse().map((x) => h('li', { class: 'backup-row' },
       h('div', { class: 'grow' }, h('div', { class: 'title' }, backupLabel(x)), h('div', { class: 'sub' }, fmtTime(x.time))),
       btn('恢复', () => restore(backupLabel(x), { backup: x.name }), 'small'))));
-    clear(backupBox).append(
+    clear(backupBox).append(...[
       h('div', { class: 'row' }, exportBtn('导出（不含凭据）', false), hasBridge() ? exportBtn('导出（含凭据）', true) : null),
       h('p', { class: 'small muted' }, '导出文件保存在内部存储 Download 目录。恢复不含凭据的备份时，会沿用当前已保存的凭据。'),
       hasBridge() ? h('details', { open: files.files.length > 0 }, h('summary', null, `下载目录中的备份文件（${files.files.length}）`), files.files.length ? fileList : empty('没有找到 ksu_proxy_manager-*.json')) : null,
-      h('details', null, h('summary', null, `本机恢复点（${b.backups.length}）`), b.backups.length ? autoList : empty('暂无')));
+      h('details', null, h('summary', null, `本机恢复点（${b.backups.length}）`), b.backups.length ? autoList : empty('暂无')),
+    ].filter(Boolean));
   }
 
   function renderAbout() {

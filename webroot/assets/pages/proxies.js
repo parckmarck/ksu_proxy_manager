@@ -203,9 +203,10 @@ function groupFields(cfg, group) {
   const groupOpts = () => cfg.groups.filter((g) => !group || g.id !== group.id).map((g) => [g.id, g.name]);
   const subOpts = () => cfg.subscriptions.map((s) => [s.id, s.name]);
   return [
+    { section: '基础信息' },
     { key: 'name', label: '名称' },
     { key: 'type', label: '类型', type: 'select', options: [['select', '手动选择'], ['urltest', '自动测速选优'], ['fallback', '故障转移'], ['load-balance', '负载均衡（仅 Mihomo）']], hint: '故障转移按优先顺序使用首个可用出口；sing-box 会改用自动测速选优，行为不同。负载均衡仅支持 Mihomo，切换 sing-box 前须更改组类型。' },
-    { key: 'strategy', label: '均衡策略', type: 'select', options: [['consistent-hashing', '一致性哈希（同目标固定出口）'], ['round-robin', '轮询（新连接轮换出口）'], ['sticky-sessions', '粘性会话（同来源与目标固定出口）']], show: (v) => v.type === 'load-balance', hint: '轮询可能让同一服务的不同连接使用不同出口；粘性会话缓存约 10 分钟。节点故障或成员变化仍可能切换出口。' },
+    { section: '成员来源' },
     { key: 'includeAll', label: '包含全部节点', type: 'switch' },
     { key: 'subscriptions', label: '包含订阅的全部节点', type: 'checks', options: subOpts, show: (v) => !v.includeAll || v.type === 'fallback' },
     { key: 'nodes', label: '包含节点', type: 'checks', options: nodeOpts, show: (v) => !v.includeAll || v.type === 'fallback' },
@@ -213,6 +214,8 @@ function groupFields(cfg, group) {
     { key: 'filter', label: '名称包含（正则）', placeholder: '例如 香港|HK', hint: '只保留名称匹配的节点' },
     { key: 'excludeFilter', label: '名称排除（正则）', placeholder: '例如 剩余|过期' },
     { key: 'includeDirect', label: '包含“直连”选项', type: 'switch', show: (v) => v.type === 'select' },
+    { section: '测速与策略', show: (v) => ['urltest', 'fallback', 'load-balance'].includes(v.type) },
+    { key: 'strategy', label: '均衡策略', type: 'select', options: [['consistent-hashing', '一致性哈希（同目标固定出口）'], ['round-robin', '轮询（新连接轮换出口）'], ['sticky-sessions', '粘性会话（同来源与目标固定出口）']], show: (v) => v.type === 'load-balance', hint: '轮询可能让同一服务的不同连接使用不同出口；粘性会话缓存约 10 分钟。节点故障或成员变化仍可能切换出口。' },
     { key: 'testUrl', label: '测速地址', placeholder: 'https://www.gstatic.com/generate_204', show: (v) => ['urltest', 'fallback', 'load-balance'].includes(v.type) },
     { key: 'intervalSec', label: '测速间隔（秒）', type: 'number', min: 30, max: 86400, show: (v) => ['urltest', 'fallback', 'load-balance'].includes(v.type) },
     { key: 'toleranceMs', label: '切换容差（毫秒）', type: 'number', min: 0, show: (v) => v.type === 'urltest' },
@@ -286,9 +289,9 @@ async function editGroup(cfg, group, onSaved) {
 }
 
 export default function mount(view, ctx) {
-  const runtime = h('div', null, loading());
-  const nodesBox = h('div', null, loading());
-  const groupsBox = h('div', null, loading());
+  const runtime = h('div', { class: 'proxy-runtime' }, loading());
+  const nodesBox = h('div', { class: 'proxy-nodes' }, loading());
+  const groupsBox = h('div', { class: 'proxy-config' }, loading());
   const search = h('input', { type: 'search', placeholder: '搜索节点', oninput: () => renderNodes() });
   const typeFilter = h('select', { 'aria-label': '节点类型', onchange: () => renderNodes() },
     h('option', { value: '' }, '全部类型'), NODE_TYPES.map(([value, label]) => h('option', { value }, label)));
@@ -336,7 +339,7 @@ export default function mount(view, ctx) {
     if (!p.running) runtime.append(h('p', { class: 'small muted' }, '核心未运行：显示的是配置中的选择，启动后可实时切换。'));
     for (const [index, g] of p.groups.entries()) {
       const nodeIds = g.members.filter((m) => m.ref.startsWith('node:')).map((m) => m.ref.slice(5));
-      const grid = h('div', { class: 'members', role: 'group', 'aria-label': g.name });
+      const grid = h('div', { class: 'members' + (g.members.some((m) => (m.name || m.ref).length > 24) ? ' members-long' : ''), role: 'group', 'aria-label': g.name });
       for (const m of g.members) {
         const id = m.ref.startsWith('node:') ? m.ref.slice(5) : '';
         const ms = (id && delays[id] && !delays[id].error) ? delays[id].delay : m.delay;
@@ -383,8 +386,8 @@ export default function mount(view, ctx) {
     for (const n of list.slice(0, 500)) {
       ul.append(h('li', { class: 'node-row' },
         h('div', { class: 'grow node-main' },
-          h('div', { class: 'title ellipsis', title: n.name }, n.name),
-          h('div', { class: 'sub ellipsis' }, `${typeLabel(n.type)} · ${n.server}:${n.port}` + (n.subscriptionName ? ` · ${n.subscriptionName}` : '') + (n.upstream ? ' · 链式' : ''))),
+          h('div', { class: 'title', title: n.name }, n.name),
+          h('div', { class: 'sub' }, `${typeLabel(n.type)} · ${n.server}:${n.port}` + (n.subscriptionName ? ` · ${n.subscriptionName}` : '') + (n.upstream ? ' · 链式' : ''))),
         h('span', { class: 'node-delay ' + (delays[n.id]?.error ? 'delay-bad' : delayClass(delays[n.id]?.delay)) }, delayText(n.id)),
         h('div', { class: 'row-actions' },
         toolBtn('测速', 'gauge', () => testDelay([n.id])),
@@ -412,7 +415,7 @@ export default function mount(view, ctx) {
       if (g.nodes.length) parts.push(`${g.nodes.length} 个节点`);
       if (g.groups.length) parts.push('组：' + g.groups.map((x) => names[x] || x).join('、'));
       if (g.filter) parts.push('包含 /' + g.filter + '/');
-      ul.append(h('li', null,
+      ul.append(h('li', { class: 'group-config-row' },
         h('div', { class: 'grow' }, h('div', { class: 'title' }, g.name, ' ', chip(groupTypeLabel(g.type))),
           h('div', { class: 'sub' }, `${(cfg.members[g.id] || []).length} 个成员 · ` + (parts.join(' · ') || '无成员'))),
         h('div', { class: 'row-actions' },

@@ -26,15 +26,15 @@ export default function mount(view, ctx) {
   let labels = {};
   let showSystem = false;
   const modeBox = h('div', { class: 'app-modes' }, loading());
-  const usersBox = h('div', { class: 'row' });
-  const listBox = h('div', null, loading());
+  const usersBox = h('div', { class: 'row app-user-options' });
+  const listBox = h('div', { class: 'app-list' }, loading());
   const countEl = h('span', { class: 'small muted' });
   const search = h('input', { type: 'search', placeholder: '搜索应用名或包名', oninput: () => renderList() });
   const sysToggle = h('input', { type: 'checkbox', onchange: () => { showSystem = sysToggle.checked; renderList(); } });
   const saveBtn = btn('保存', save, 'primary');
 
   view.append(
-    card('代理范围', null, modeBox, h('div', { style: { marginTop: '10px' } }, h('div', { class: 'small muted' }, 'Android 用户'), usersBox)),
+    card('代理范围', null, modeBox, h('div', { class: 'app-users' }, h('div', { class: 'small muted' }, 'Android 用户'), usersBox)),
     card('应用名单与出口', h('div', { class: 'row' }, countEl, saveBtn),
       h('div', { class: 'toolbar' }, searchField(search), h('label', { class: 'row small' }, sysToggle, '显示系统应用')),
       listBox),
@@ -114,7 +114,7 @@ export default function mount(view, ctx) {
     updateCount();
     listBox.append(h('div', { class: 'small muted app-hint' },
       all ? '当前代理全部可接管应用，系统共享 UID 与标准网络认证应用直连。' : '勾选决定应用是否计入名单。',
-      '右侧可为单个应用指定出口：规则模式下优先于分流页的全部规则，只对被代理的应用生效，修改后需重启核心。'));
+      '可为单个应用指定出口：规则模式下优先于分流页的全部规则，只对被代理的应用生效，修改后需重启核心。'));
     const kw = search.value.trim().toLowerCase();
     const installed = new Set(data.apps.map((a) => a.package));
     const missing = [...new Set([...selected, ...routes.keys()])].filter((p) => !installed.has(p));
@@ -128,10 +128,10 @@ export default function mount(view, ctx) {
     apps.sort((a, b) => (selected.has(b.package) - selected.has(a.package)) || (routes.has(b.package) - routes.has(a.package))
       || (labels[a.package]?.label || a.package).localeCompare(labels[b.package]?.label || b.package));
     const template = routeTemplate();
-    const ul = h('ul', { class: 'list' });
+    const ul = h('ul', { class: 'list app-entries' });
     for (const p of missing) {
       const target = routes.get(p);
-      ul.append(h('li', null, h('div', { class: 'grow' }, h('div', { class: 'title' }, p), h('div', { class: 'sub' }, target ? `未安装 · 出口：${targetLabel(groups, target)}` : '未安装')),
+      ul.append(h('li', { class: 'app-row app-missing' }, h('div', { class: 'grow' }, h('div', { class: 'title' }, p), h('div', { class: 'sub' }, target ? `未安装 · 出口：${targetLabel(groups, target)}` : '未安装')),
         btn('移除', () => {
           if (policy.mode !== 'all') policy.packages = policy.packages.filter((x) => x !== p);
           policy.routes = policy.routes.filter((r) => r.package !== p);
@@ -144,8 +144,8 @@ export default function mount(view, ctx) {
         updateCount();
       } });
       const label = labels[a.package]?.label;
-      ul.append(h('li', null, h(all ? 'div' : 'label', { class: 'row grow', style: { flexWrap: 'nowrap' } }, cb, icon('smartphone'),
-        h('div', { class: 'grow' }, h('div', { class: 'title ellipsis' }, label || a.package), h('div', { class: 'sub ellipsis' }, `${a.package} · UID ${a.uid}${a.protectedReason ? ' · ' + a.protectedReason + '（直连）' : ''}`))),
+      ul.append(h('li', { class: 'app-row' }, h(all ? 'div' : 'label', { class: 'row grow app-identity' }, cb, icon('smartphone'),
+        h('div', { class: 'grow' }, h('div', { class: 'title app-name' }, label || a.package), h('div', { class: 'sub app-package' }, `${a.package} · UID ${a.uid}${a.protectedReason ? ' · ' + a.protectedReason + '（直连）' : ''}`))),
         routeSelect(template, a.package, label || a.package, a.protectedReason ? '' : routes.get(a.package), !!a.protectedReason)));
     }
     if (!apps.length && !missing.length) ul.append(h('li', { class: 'muted' }, '没有匹配的应用'));
