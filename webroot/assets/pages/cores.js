@@ -148,7 +148,14 @@ export default function mount(view, ctx) {
       importBox.append(h('p', { class: 'small muted' }, '下载目录中没有找到核心文件（文件名需包含 mihomo 或 sing-box）。'));
     }
     importBox.append(h('div', { class: 'row core-import-path' }, h('div', { class: 'grow' }, pathInput),
-      btn('按路径导入', () => (pathInput.value.trim() ? doImport(pathInput.value.trim()) : null), 'small')),
+      btn('按路径导入', () => {
+        if (!pathInput.value.trim()) {
+          toast('请输入本地核心路径', 'err');
+          pathInput.focus();
+          return;
+        }
+        return doImport(pathInput.value.trim());
+      }, 'small')),
     h('p', { class: 'small muted core-note' }, '支持 .gz / .tar.gz / .zip 或可执行文件，会检查架构并运行版本命令识别类型；本地文件来源无法校验，请只导入可信文件。'));
   }
 

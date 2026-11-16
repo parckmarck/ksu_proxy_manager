@@ -51,11 +51,29 @@ const ACTION_ICONS = {
   '下载缺失': 'download', '按路径导入': 'upload', '恢复默认排除列表': 'rotateCcw',
 };
 
+const BUSY_LABELS = {
+  '刷新': '正在刷新…', '刷新状态': '正在刷新…', '获取版本列表': '正在获取…', '获取最新版本': '正在获取…',
+  '保存': '正在保存…', '更新': '正在更新…', '全部更新': '正在更新…',
+  '启动核心': '正在启动…', '停止': '正在停止…', '重启核心': '正在重启…', '应用配置并重启': '正在重启…',
+  '立即应用': '正在应用…', '应用': '正在应用…', '重试': '正在重试…', '重新连接': '正在连接…',
+  '测速': '正在测速…', '复制': '正在复制…', '删除': '正在删除…', '清空': '正在清空…',
+  '断开': '正在断开…', '全部断开': '正在断开…', '下载安装': '正在下载…', '下载缺失': '正在下载…',
+  '导入': '正在导入…', '按路径导入': '正在导入…', '恢复': '正在恢复…', '恢复默认排除列表': '正在恢复…',
+  '生成密钥': '正在生成…', '重新生成密钥': '正在生成…', '查看诊断信息': '正在获取…',
+  '导出（不含凭据）': '正在导出…', '导出（含凭据）': '正在导出…', '取消': '正在取消…',
+  '添加': '正在添加…', '编辑': '正在编辑…', '上移': '正在移动…', '下移': '正在移动…',
+};
+
 export function btn(label, onclick, cls = '', iconName = ACTION_ICONS[label]) {
+  const text = h('span', { class: 'btn-label' }, label);
   const b = h('button', { class: 'btn ' + cls, type: 'button' },
-    iconName ? icon(iconName) : null, h('span', { class: 'btn-label' }, label));
+    iconName ? icon(iconName) : null, text);
   b.addEventListener('click', async (ev) => {
     if (b.disabled) return;
+    // Keep the normal nodes intact: status renders and local toggles can update them.
+    const indicator = icon(iconName === 'refreshCw' ? 'refreshCw' : 'loaderCircle', 'btn-busy-icon');
+    const progress = h('span', { class: 'btn-busy-label', 'aria-hidden': 'true' }, BUSY_LABELS[text.textContent] || '处理中…');
+    b.append(indicator, progress);
     b.disabled = true;
     b.classList.add('busy');
     b.setAttribute('aria-busy', 'true');
@@ -64,6 +82,8 @@ export function btn(label, onclick, cls = '', iconName = ACTION_ICONS[label]) {
     } catch (e) {
       toast(errorText(e), 'err');
     } finally {
+      indicator.remove();
+      progress.remove();
       b.classList.remove('busy');
       b.removeAttribute('aria-busy');
       b.disabled = b.dataset.blocked === 'true';

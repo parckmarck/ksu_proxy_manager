@@ -180,7 +180,11 @@ async function importNodes(onDone) {
   await modal('导入节点', ta, [
     { label: '取消', value: null },
     { label: '导入', cls: 'primary', onclick: async () => {
-      if (!ta.value.trim()) return false;
+      if (!ta.value.trim()) {
+        toast('请先填写节点内容', 'err');
+        ta.focus();
+        return false;
+      }
       try {
         const r = await post('/api/v1/nodes/import', { text: ta.value });
         const issues = r.issues || [];
@@ -348,15 +352,27 @@ export default function mount(view, ctx) {
         grid.append(h('button', {
           type: 'button', class: 'member' + (g.type !== 'load-balance' && g.now === m.ref ? ' on' : ''), title: m.name, 'aria-pressed': g.type !== 'load-balance' && g.now === m.ref,
           disabled: g.type !== 'select', dataset: { member: m.ref, group: g.id },
-          onclick: g.type === 'select' ? async () => {
+          onclick: g.type === 'select' ? async (ev) => {
             if (selecting.has(g.id)) return;
             selecting.add(g.id);
             grid.setAttribute('aria-busy', 'true');
+            const member = ev.currentTarget;
+            const status = member.querySelector('.meta > span:last-child');
+            const indicator = icon('loaderCircle', 'member-spinner');
+            member.setAttribute('aria-busy', 'true');
+            member.querySelector('.member-head').append(indicator);
+            status.textContent = '正在切换…';
             try {
               await post('/api/v1/groups/' + encodeURIComponent(g.id) + '/select', { member: m.ref });
               await loadRuntime();
             } catch (e) { toast(errorText(e), 'err'); }
-            finally { selecting.delete(g.id); grid.removeAttribute('aria-busy'); }
+            finally {
+              selecting.delete(g.id);
+              grid.removeAttribute('aria-busy');
+              member.removeAttribute('aria-busy');
+              indicator.remove();
+              status.textContent = label;
+            }
           } : null,
         }, h('span', { class: 'member-head' }, h('span', { class: 'name' }, m.name || m.ref), icon('circleCheck', 'selected-icon')),
         h('span', { class: 'meta' }, h('span', null, m.ref.startsWith('group:') ? '代理组' : m.type || '直连'), h('span', { class: timeout ? 'delay-bad' : delayClass(ms) }, label))));
